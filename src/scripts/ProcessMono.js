@@ -838,7 +838,7 @@ function RunBlurXterminatorCorrectOnly(window) {
     console.noteln("Running BlurXTerminator Correct Only on " + window.mainView.id + ".");
 
     var P = new BlurXTerminator;
-    P.ai_file = "BlurXTerminator.4.pb";
+    P.ml_version = 5;
     P.correct_only = true;
     P.correct_first = false;
     P.nonstellar_then_stellar = false;
@@ -863,7 +863,7 @@ function RunBlurXterminatorFull(window) {
     console.noteln("Running BlurXTerminator Full on " + window.mainView.id + ".");
     
     var P = new BlurXTerminator;
-    P.ai_file = "BlurXTerminator.4.pb";
+    P.ml_version = 5;
     P.correct_only = false;
     P.correct_first = false;
     P.nonstellar_then_stellar = false;
