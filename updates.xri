@@ -6,16 +6,16 @@
      </p>
   </description>
    <platform os="all" arch="noarch" version="1.9.3:1.9.3">
-      <package fileName="updates/ProcessMasters-v1.0.4.zip"
+      <package fileName="updates/ProcessMono-v1.0.4.zip"
                sha1="770f582d328d2d38121a66e042796448df6fa77b"
                type="script"
                releaseDate="20260705">
          <title>
-            ProcessMasters
+            ProcessMono
          </title>
          <description>
             <p>
-               ProcessMasters.js automates early post-integration processing for WBPP master files.
+               ProcessMono.js automates early post-integration processing for WBPP master files.
                It is designed to take channel masters (L, R, G, B, H, S, O), clean up workspace artifacts,
                run common AI-assisted correction steps, and produce combined masters for downstream processing.
             </p>
@@ -38,6 +38,3 @@
       </package>
    </platform>
 </xri>
-
-
-

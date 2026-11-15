@@ -58,14 +58,14 @@ $newVersion = '{0}.{1}.{2}' -f $major, $minor, $patch
 $repo.version = $newVersion
 
 foreach ($scriptEntry in $repo.scripts) {
-    if ($scriptEntry.id -eq 'ProcessMasters') {
+    if ($scriptEntry.id -eq 'ProcessMono') {
         $scriptEntry.version = $newVersion
     }
 }
 
 $repo | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $repoPath -Encoding UTF8
 
-$zipName = 'ProcessMasters-v{0}.zip' -f $newVersion
+$zipName = 'ProcessMono-v{0}.zip' -f $newVersion
 $zipPath = Join-Path $updatesDir $zipName
 
 if (Test-Path -LiteralPath $zipPath) {

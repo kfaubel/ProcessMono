@@ -1,4 +1,4 @@
-# ProcessMasters
+# ProcessMono
 
 Simple PixInsight script for WBPP post processing.
 
@@ -6,16 +6,16 @@ Simple PixInsight script for WBPP post processing.
 
 ## What the script does
 
-`ProcessMasters.js` automates early post-integration processing for WBPP master files.
+`ProcessMono.js` automates early post-integration processing for WBPP master files.
 It is designed to take channel masters (L, R, G, B, H, S, O), clean up workspace artifacts,
 run common AI-assisted correction steps, and produce combined masters for downstream processing.
 
 ## Install into Pixinsight
 - Open Resources -> Updates -> Manage Repositories...
-- Click Add and enter `https://raw.githubusercontent.com/kfaubel/ProcessMasters/main/`
+- Click Add and enter `https://raw.githubusercontent.com/kfaubel/ProcessMono/main/`
 - Open Resources -> Updates -> Check for Updates...
 - Close PixInsight and let it restart after updates.
-- Check Scripts -> Treehouse Astro -> ProcessMasters to open the script dialog
+- Check Scripts -> Treehouse Astro -> ProcessMono to open the script dialog
 
 ### Running WBPP
 Run WBPP as normal.  If you drizzle x2 and enable auto-crop you will end up with lots of files but the last ones created for each channel will look something like this:
@@ -27,7 +27,7 @@ masterLight_BIN-1_6248x4176_EXPOSURE-30.00s_FILTER-B_mono_drizzle_2x_autocrop.xi
 These filenames are not very useful for processing beyond the name of the filter.  These files also contain a `crop_mask` window that is not needed for further processing.  
 
 ### Running the script
-In PixInsight, go to  `Scripts -> Treehouse Astro -> ProcessMasters`.  A dialog will open that allows you to select the master files you want to process.  The script will detect the filter type from the file name and save files as `L.xisf`, `R.xisf`, etc.  It will also close any `crop_mask` windows that are open.
+In PixInsight, go to  `Scripts -> Treehouse Astro -> ProcessMono`.  A dialog will open that allows you to select the master files you want to process.  The script will detect the filter type from the file name and save files as `L.xisf`, `R.xisf`, etc.  It will also close any `crop_mask` windows that are open.
 
 If you captured narrowband data for a nebula and you captured RGB for stars you would select all 6 channels (R, G, B, S, H & O).
 
@@ -74,12 +74,9 @@ function RunStarXterminator(window, stars) {
 - It uses the older PJSR framework and needs to be updated to use the new Google V8 JavaScript engine.
 
 ## Local Deploy
-To deploy this locally, use the localdeploy.bat script. This deploys the script to the PixInsight scripts directory.  The default location is:
-`C:\Program Files\PixInsight\src\scripts\local\`
+The siimplest way to add this to Pixinsight is to go to the Scripts menu, select `Feature Scripts...`, and then choose the directory where the script is located.  You should then see the script listed in the Script menu under Treehouse Astro.
 
-Because this location is under Program Files, run localdeploy.bat from an elevated (Administrator) shell.
-
-To get PixInsight to recognize the script, you need to run Scripts -> Feature Scripts... and select the `C:\Program Files\PixInsight\src\scripts\local\` directory.  After that, the script will be available in the Script menu.
+localdeploy.bat is not needed for this method of local deployment but was there for testing.
 
 ## Public Deployment
 Run `release.bat (Major|Minor|Patch)` to update the version, generate the release zip file and generate the SHA1 hash for the release zip file.
