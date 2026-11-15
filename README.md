@@ -10,14 +10,14 @@ Simple PixInsight script for WBPP post processing.
 It is designed to take channel masters (L, R, G, B, H, S, O), clean up workspace artifacts,
 run common AI-assisted correction steps, and produce combined masters for downstream processing.
 
-## Install into Pixinsight
-- Open Resources -> Updates -> Manage Repositories...
-- Click Add and enter `https://raw.githubusercontent.com/kfaubel/ProcessMono/main/`
-- Open Resources -> Updates -> Check for Updates...
-- Close PixInsight and let it restart after updates.
-- Check Scripts -> Treehouse Astro -> ProcessMono to open the script dialog
+## Adding the script to PixInsight
+After cloning the repo, navigate to the directory where the script is located.
 
-### Running WBPP
+The siimplest way to add this to Pixinsight is to go to the Scripts menu, select `Feature Scripts...`, and then choose the directory where the script is located.  
+
+localdeploy.bat is not needed for this method of local deployment but was there for testing.
+
+## Notes on Running WBPP
 Run WBPP as normal.  If you drizzle x2 and enable auto-crop you will end up with lots of files but the last ones created for each channel will look something like this:
 ```
 masterLight_BIN-1_6248x4176_EXPOSURE-30.00s_FILTER-R_mono_drizzle_2x_autocrop.xisf
@@ -26,7 +26,7 @@ masterLight_BIN-1_6248x4176_EXPOSURE-30.00s_FILTER-B_mono_drizzle_2x_autocrop.xi
 ```
 These filenames are not very useful for processing beyond the name of the filter.  These files also contain a `crop_mask` window that is not needed for further processing.  
 
-### Running the script
+## Running the script
 In PixInsight, go to  `Scripts -> Treehouse Astro -> ProcessMono`.  A dialog will open that allows you to select the master files you want to process.  The script will detect the filter type from the file name and save files as `L.xisf`, `R.xisf`, etc.  It will also close any `crop_mask` windows that are open.
 
 If you captured narrowband data for a nebula and you captured RGB for stars you would select all 6 channels (R, G, B, S, H & O).
@@ -73,14 +73,16 @@ function RunStarXterminator(window, stars) {
 - It is still a work in progress and will get periodic updates.
 - It uses the older PJSR framework and needs to be updated to use the new Google V8 JavaScript engine.
 
-## Local Deploy
-The siimplest way to add this to Pixinsight is to go to the Scripts menu, select `Feature Scripts...`, and then choose the directory where the script is located.  You should then see the script listed in the Script menu under Treehouse Astro.
-
-localdeploy.bat is not needed for this method of local deployment but was there for testing.
-
-## Public Deployment
+## Public Deployment (Work in Progress)
 Run `release.bat (Major|Minor|Patch)` to update the version, generate the release zip file and generate the SHA1 hash for the release zip file.
 Commit the changes to GitHub and push. 
+
+## Install into Pixinsight from a Repository (work in progress)
+- Open Resources -> Updates -> Manage Repositories...
+- Click Add and enter `https://raw.githubusercontent.com/kfaubel/ProcessMono/main/`
+- Open Resources -> Updates -> Check for Updates...
+- Close PixInsight and let it restart after updates.
+- Check Scripts -> Treehouse Astro -> ProcessMono to open the script dialog
 
 ## License
 
