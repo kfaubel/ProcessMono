@@ -162,7 +162,7 @@ function ProcessMono() {
             }
         } else {
             // Intentional: when SXT is disabled, we skip star/starless-only branches and treat this stage as complete.
-            console.noteln("Skipping StarXTerminator because it is disabled.");
+            console.noteln("Skipping StarXTerminator because it not enabled.");
             return true;
         }
 
@@ -233,7 +233,7 @@ function ProcessMono() {
         for (let inputFileIndex = 0; inputFileIndex < this.inputFiles.length; ++inputFileIndex) {
             var filePath = this.inputFiles[inputFileIndex];
 
-            console.noteln("***** Processing file: " + filePath + " *****");
+            console.noteln("***** Processing input file: " + filePath + " *****");
 
             console.show();
 
@@ -344,6 +344,7 @@ function ProcessMono() {
 
         // Branch 1: SHO (independent of RGB and L)
         if (windowsDictionary["S"] && windowsDictionary["H"] && windowsDictionary["O"]) {
+            console.noteln("Found all SHO channels.  Starting processing...");
             var shoChannels = ["S", "H", "O"];
             for (var ci = 0; ci < shoChannels.length; ++ci) {
                 var ch = windowsDictionary[shoChannels[ci]];
@@ -352,6 +353,9 @@ function ProcessMono() {
                         console.warningln("GraXpert failed on: " + ch.mainView.id);
                         return;
                     }
+                    // After RunGraxpertBackgroundExtraction, get the new active window
+                    ch = ImageWindow.activeWindow;
+                    windowsDictionary[shoChannels[ci]] = ch;
                 }
                 if (this.runBlurXterminatorCorrectOnly) {
                     if (!RunBlurXterminatorCorrectOnly(ch)) {
@@ -382,6 +386,7 @@ function ProcessMono() {
             }
         // Branch 1a, only H & O are available for HOO combination
         } else if (windowsDictionary["H"] && windowsDictionary["O"]) {
+            console.noteln("Found all HO channels.  Starting processing...");
             if (this.shoPaletteMode !== "HOO") {
                 console.warningln(this.shoPaletteMode + " requested but no S channel is available.  Skipping processing");
                 return;
@@ -396,6 +401,9 @@ function ProcessMono() {
                         console.warningln("GraXpert failed on: " + ch.mainView.id);
                         return;
                     }
+                    // After RunGraxpertBackgroundExtraction, get the new active window
+                    ch = ImageWindow.activeWindow;
+                    windowsDictionary[shoChannels[ci]] = ch;
                 }
                 if (this.runBlurXterminatorCorrectOnly) {
                     if (!RunBlurXterminatorCorrectOnly(ch)) {
@@ -428,8 +436,9 @@ function ProcessMono() {
             console.noteln("Skipping SHO processing because S/H/O or H/Oinputs were not all found.");
         }
 
-        // Branch 2: RGB (independent of SHO and L)
+        // Branch 2: RGB (independent of SHO and L)        
         if (windowsDictionary["R"] && windowsDictionary["G"] && windowsDictionary["B"]) {
+            console.noteln("Found all RGB channels.  Starting processing");
             var rgbChannels = ["R", "G", "B"];
             for (var ci = 0; ci < rgbChannels.length; ++ci) {
                 var ch = windowsDictionary[rgbChannels[ci]];
@@ -438,6 +447,9 @@ function ProcessMono() {
                         console.warningln("GraXpert failed on: " + ch.mainView.id);
                         return;
                     }
+                    // After RunGraxpertBackgroundExtraction, get the new active window
+                    ch = ImageWindow.activeWindow;
+                    windowsDictionary[rgbChannels[ci]] = ch;
                 }
                 if (this.runBlurXterminatorCorrectOnly) {
                     if (!RunBlurXterminatorCorrectOnly(ch)) {
@@ -480,6 +492,7 @@ function ProcessMono() {
         }
 
         // Branch 3: Luminance (independent of SHO and RGB)
+        console.noteln("Checking for Luminance branch processing...");
         if (windowsDictionary["L"]) {
             if (!this.processMergedMasters(windowsDictionary["L"], "L", dir))
                 return;
@@ -797,35 +810,72 @@ function RunPixelMath(redChannelExpression, greenChannelExpression, blueChannelE
 /**
  * @function RunGraxpertBackgroundExtraction
  * @summary Runs GraXpert background extraction on a target window.
+ * @description This function runs the GraXpert background extraction process on the specified image window. 
+ * * It constructs the appropriate input and output file paths
+ * * It executes the GraXpert command using an external process
+ * * It copies the astronomical solution and ensures the finished file has the same window ID as the original 
  * @param {ImageWindow} window Target image window.
  * @returns {Boolean} True if process executed.
  */
 function RunGraxpertBackgroundExtraction(window) {
     console.noteln("Running GraXpert Background Extraction on " + window.mainView.id + ".");
+    var graxpertInXisf = window.filePath;
 
-    var P = new GraXpert;
-    P.backgroundExtraction = true;
-    P.smoothing = 0.0;
-    P.correction = "Subtraction";
-    P.createBackground = false;
-    P.backgroundExtractionAIModel = "";
-    P.denoising = false;
-    P.strength = 1.00;
-    P.batchSize = 4;
-    P.denoiseAIModel = "";
-    P.disableGPU = false;
-    P.replaceImage = true;
-    P.showLogs = false;
-    P.appPath = "";
-    P.deconvolution = false;
-    P.deconvolutionMode = "Object-only";
-    P.deconvolutionObjectStrength = 0.5;
-    P.deconvolutionObjectPSFSize = 5.0;
-    P.deconvolutionObjectAIModel = "";
-    P.deconvolutionStarsAIModel = "";
+    // if filepath is R.xisf, graxpertXisf should be R_graxpert.xisf
+    var fileBaseName = File.extractName(graxpertInXisf);
+    var fileDir = File.extractDrive(graxpertInXisf) + File.extractDirectory(graxpertInXisf);
+    var graxpertOut = File.appendToName(fileDir + "/" +fileBaseName, "_graxpert"); // Uses as parameter for GraXpert output (no xisf)
+    var graxpertOutXisf = File.appendToName(fileDir + "/" +fileBaseName, "_graxpert") + ".xisf";
+    
+    // Execute command using ExternalProcess
+    // Note: GraXpert doesn't output to stdout/stderr, only to its log file
+    // So we can't rely on process output - we'll just call it and check if output file is created
+    var process = new ExternalProcess;
+    
+    // Use full path to graxpert executable
+    // var graxpertPath = "C:\\Users\\ken\\AppData\\Local\\Programs\\GraXpert\\GraXpert.exe";
+    var graxpertPath = "GraXpert.exe";
+    
+    // Try to start graxpert with full path
+    // Note: GraXpert will automatically append ".xisf" to the output filename specified with --output
+    console.noteln("Running Graxpert with command: " + graxpertPath + " " + graxpertInXisf + " --output " + graxpertOut + " --cli --gpu_acceleration true --smoothing 0.3");
+    var startSuccess = process.start(graxpertPath, [
+        graxpertInXisf,
+        "--output", graxpertOut,
+        "--cli", "--gpu_acceleration", "true",
+        "--smoothing", "0.3"
+    ]);
+    
+    // startSuccess always returns false for GraXpert, so we can't rely on it to check if the process started successfully
+    process.waitForFinished();
+    console.noteln("Process completed with exit code: " + process.exitCode);
 
-    console.show();
-    return P.executeOn(window.mainView);
+    // Store original window ID
+    var windowId = window.mainView.id;
+    
+    console.noteln("Opening processed image: " + graxpertOutXisf);
+    var newWindows = ImageWindow.open(graxpertOutXisf);
+    if (newWindows.length == 0) {
+        console.writeln("ERROR: Failed to load images from file: " + graxpertOutXisf);
+        return false;
+    }
+
+    var newWindow = newWindows[0];
+
+    newWindow.copyAstrometricSolution(window);
+    console.noteln("Astrometric solution copied from: " + window.mainView.id + " to: " + newWindow.mainView.id + ".");
+
+    // Close the current image window
+    window.close();
+
+    // Now that the original window is closed, set the ID of the new window to the original window's ID
+    newWindow.mainView.id = windowId;
+    
+    // Show the window to make it visible and active
+    newWindow.show();
+    
+    console.noteln("GraXpert background extraction completed successfully.");
+    return true;
 }
 
 /**
@@ -843,11 +893,11 @@ function RunBlurXterminatorCorrectOnly(window) {
     P.correct_first = false;
     P.nonstellar_then_stellar = false;
     P.lum_only = false;
-    P.sharpen_stars = 0.50;
+    P.sharpen_stars = 0.40;
     P.adjust_halos = 0.00;
     P.nonstellar_psf_diameter = 0.00;
     P.auto_nonstellar_psf = true;
-    P.sharpen_nonstellar = 0.50;
+    P.sharpen_nonstellar = 0.90;
 
     console.show();
     return P.executeOn(window.mainView);
@@ -868,11 +918,11 @@ function RunBlurXterminatorFull(window) {
     P.correct_first = false;
     P.nonstellar_then_stellar = false;
     P.lum_only = false;
-    P.sharpen_stars = 0.50;
+    P.sharpen_stars = 0.25;
     P.adjust_halos = 0.00;
     P.nonstellar_psf_diameter = 0.00;
     P.auto_nonstellar_psf = true;
-    P.sharpen_nonstellar = 0.50;
+    P.sharpen_nonstellar = 0.90;
 
     console.show();
     return P.executeOn(window.mainView);
@@ -891,7 +941,7 @@ function RunNoiseXterminator(window) {
     P.ai_file = "NoiseXTerminator.3.pb";
     P.enable_color_separation = false;
     P.enable_frequency_separation = false;
-    P.denoise = 0.90;
+    P.denoise = 0.70;
     P.denoise_color = 0.90;
     P.denoise_lf = 0.9;
     P.denoise_lf_color = 0.9;
@@ -916,7 +966,7 @@ function RunStarXterminator(window, stars) {
     var P = new StarXTerminator;
     P.ai_file = "StarXTerminator.11.pb";
     P.stars = stars;
-    P.unscreen = false;
+    P.unscreen = true;
     P.overlap = 0.50;
 
     console.noteln("Invoking StarXTerminator");
@@ -1461,7 +1511,7 @@ function ProcessMonoDialog(engine) {
     //              Receives: checked (Boolean) parameter
     // ---------------------------------------------------------------
     this.runGraxpertBG_CheckBox = new CheckBox(this);
-    this.runGraxpertBG_CheckBox.text = "Run Graxpert Background Extraction";
+    this.runGraxpertBG_CheckBox.text = "Run Graxpert Background Extraction (Stand alone)";
     this.runGraxpertBG_CheckBox.checked = this.engine.runGraxpertBG;
     this.runGraxpertBG_CheckBox.toolTip = "<p>Enable Graxpert Background Extraction.</p>";
     this.runGraxpertBG_CheckBox.onCheck = function (checked) {
