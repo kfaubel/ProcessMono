@@ -1,3 +1,5 @@
 src/scripts/ProcessMasters.js.save
 updates/
 
+*.backup_*
+backups/

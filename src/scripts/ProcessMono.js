@@ -33,6 +33,94 @@
 #include <pjsr/StdIcon.jsh>      // StdIcon_Information, StdIcon_Warning, etc.
 #include <pjsr/TextAlign.jsh>    // TextAlign_Left, TextAlign_Center, TextAlign_Right
 
+/* ============================================================================
+ * UNIFIED TARGET PROFILES FOR AUTOMATED PIXINSIGHT PIPELINE (PI 1.9.6 + RC v2.6.11)
+ * ============================================================================ */
+var TARGET_PROFILES = {
+    "Standard DSO": {
+        tooltip: "Balanced settings for typical galaxies, clusters, and medium emission nebulae.",
+        gc:  { scale: 5.0, smoothness: 0.40, protectThresh: 0.25, protectAmt: 0.50, convLimit: 0.0010, maxIter: 10 },
+        bxt: { nonstellarNB: 0.90, nonstellarBB: 0.85, starsBB: 0.25, halo: 0.00 },
+        nxt: { denoise: 0.70, iter: 2, colorSep: true,  denoiseColor: 0.95, freqSep: false, denoiseLF: 0.00 },
+        mas: { targetBgNB: 0.16, targetBgBB: 0.15, aggrNB: 0.65, aggrBB: 0.70, drcNB: 0.20, drcBB: 0.25, contrastRec: false, contrastInt: 0.00, colorSatBB: true }
+    },
+    "Extended Nebulosity": {
+        tooltip: "Protects large, frame-filling emission clouds and outer wisps from gradient clipping.",
+        gc:  { scale: 8.0, smoothness: 0.65, protectThresh: 0.25, protectAmt: 0.50, convLimit: 0.0010, maxIter: 10 },
+        bxt: { nonstellarNB: 0.75, nonstellarBB: 0.75, starsBB: 0.20, halo: 0.00 },
+        nxt: { denoise: 0.75, iter: 3, colorSep: true,  denoiseColor: 0.95, freqSep: false, denoiseLF: 0.00 },
+        mas: { targetBgNB: 0.20, targetBgBB: 0.20, aggrNB: 0.60, aggrBB: 0.60, drcNB: 0.15, drcBB: 0.15, contrastRec: false, contrastInt: 0.00, colorSatBB: true }
+    },
+    "Faint Dust / Dark Nebula": {
+        tooltip: "Gentle sharpening and low-frequency protection for LDN dark dust and faint IFN.",
+        gc:  { scale: 8.0, smoothness: 0.65, protectThresh: 0.25, protectAmt: 0.50, convLimit: 0.0010, maxIter: 10 },
+        bxt: { nonstellarNB: 0.65, nonstellarBB: 0.65, starsBB: 0.15, halo: 0.00 },
+        nxt: { denoise: 0.80, iter: 2, colorSep: false, denoiseColor: 0.00, freqSep: true,  denoiseLF: 0.45 },
+        mas: { targetBgNB: 0.22, targetBgBB: 0.22, aggrNB: 0.55, aggrBB: 0.55, drcNB: 0.10, drcBB: 0.10, contrastRec: false, contrastInt: 0.00, colorSatBB: false }
+    },
+    "Bright Cores / High Contrast": {
+        tooltip: "Prevents dark rings around bright cores and compresses high-dynamic-range centers (e.g., M42, M31).",
+        gc:  { scale: 5.0, smoothness: 0.40, protectThresh: 0.12, protectAmt: 0.80, convLimit: 0.0010, maxIter: 10 },
+        bxt: { nonstellarNB: 0.80, nonstellarBB: 0.80, starsBB: 0.15, halo: 0.15 },
+        nxt: { denoise: 0.65, iter: 2, colorSep: true,  denoiseColor: 0.85, freqSep: false, denoiseLF: 0.00 },
+        mas: { targetBgNB: 0.15, targetBgBB: 0.15, aggrNB: 0.85, aggrBB: 0.85, drcNB: 0.70, drcBB: 0.70, contrastRec: true,  contrastInt: 0.40, colorSatBB: false }
+    }
+};
+
+/**
+ * 
+ * @param {string} profileName Name of the target profile to use (e.g.: "Standard DSO", "Faint Dust / Dark Nebula", "Bright Cores / High Contrast")
+ * @param {string} branchType Type of image branch (e.g., "SHO", "RGB", "L", "RGB_STARS")
+ * @returns {object} Branch configuration object
+ */
+function getBranchConfig(profileName, branchType) {
+    // If RGB is only a star donor for a narrowband target, force clean Standard DSO star settings
+    var activeProfile = (branchType === "RGB_STARS")
+        ? TARGET_PROFILES["Standard DSO"]
+        : (TARGET_PROFILES[profileName] || TARGET_PROFILES["Standard DSO"]);
+
+    var isNB   = (branchType === "SHO");
+    var isMono = (branchType === "L");
+
+    return {
+        gc: {
+            scale: activeProfile.gc.scale,
+            smoothness: activeProfile.gc.smoothness,
+            structureProtection: true,
+            protectionThreshold: activeProfile.gc.protectThresh,
+            protectionAmount: activeProfile.gc.protectAmt,
+            automaticConvergence: true,
+            convergenceLimit: activeProfile.gc.convLimit,
+            maxIterations: activeProfile.gc.maxIter
+        },
+        bxtFull: {
+            correctOnly: false,
+            correctFirst: false,
+            automaticPSF: true,
+            sharpenNonstellar: isNB ? activeProfile.bxt.nonstellarNB : activeProfile.bxt.nonstellarBB,
+            sharpenStars: isNB ? 0.10 : (isMono ? Math.min(0.20, activeProfile.bxt.starsBB) : activeProfile.bxt.starsBB),
+            adjustStarHalo: isNB ? 0.00 : activeProfile.bxt.halo
+        },
+        nxt: {
+            denoise: activeProfile.nxt.denoise,
+            iterations: activeProfile.nxt.iter,
+            enableColorSeparation: isMono ? false : activeProfile.nxt.colorSep,
+            denoiseColor: isMono ? activeProfile.nxt.denoise : activeProfile.nxt.denoiseColor,
+            enableFrequencySeparation: activeProfile.nxt.freqSep,
+            denoiseLF: activeProfile.nxt.denoiseLF
+        },
+        masStarless: {
+            skip: (branchType === "RGB_STARS"),
+            targetBackground: isNB ? activeProfile.mas.targetBgNB : activeProfile.mas.targetBgBB,
+            aggressiveness: isNB ? activeProfile.mas.aggrNB : activeProfile.mas.aggrBB,
+            dynamicRangeCompression: isNB ? activeProfile.mas.drcNB : activeProfile.mas.drcBB,
+            contrastRecovery: activeProfile.mas.contrastRec,
+            contrastIntensity: activeProfile.mas.contrastInt,
+            colorSaturation: (isNB || isMono) ? false : activeProfile.mas.colorSatBB
+        }
+    };
+}
+
 // In PJSR, these are three distinct layers:
 //
 // ImageWindow 
@@ -78,13 +166,17 @@ function ProcessMono() {
     this.inputFiles = new Array;
     this.outputDirectory = "";
 
+    // Target Profile - unified configuration system
+    this.targetProfile = "Standard DSO";
+
     // Process options - control additional processing steps
-    this.runGraxpertBG = true;
+    this.runGraxpertBG = false;
     this.runBlurXterminatorCorrectOnly = true;
     this.runRGBChannelCombination = true;
     this.runSHOChannelCombination = true;
     this.runSPCC = true;
     this.runLinearFit = true;
+    this.runGradientCorrection = true;
     this.runBlurXterminatorFull = true;
     this.runNoiseXterminator = true;
     this.runStarXterminator = true;
@@ -93,118 +185,593 @@ function ProcessMono() {
     this.saveTIFFs = true;
     this.shoPaletteMode = "SHO";
 
+    // Processing status tracking
+    this.statusMessages = [];
+    this.exportedFiles = [];
+    this.appliedProcesses = [];  // Track each process applied with its parameters
+    this.processingStartTime = null;
+    this.processingEndTime = null;
+
     var allowedFilters = "LRGBSHO".split("");
     var windowsDictionary = {};
+
     /**
-     * @function processMergedMasters
-     * @summary Runs processes on a merged master image.
-     * Runs BXT, NXT, SXT, stretching and exporting to TIFF files.
-     * @param {ImageWindow} window Merged master window to process.
-     * @param {String} fileBaseName Base name of the file being processed. (Typically "RGB", "SHO", or "L")
-     * @param {String} dir Output directory path.
-     * @returns {Boolean} True when all finalization steps succeed.
+     * @function extractFilterFromFITSHeader
+     * @summary Extracts the filter type from FITS header keywords.
+     * Checks FILTER, FILTERID, INSFLTR, and INSTRUME keywords for filter information.
+     * @param {ImageWindow} window The image window to extract filter from.
+     * @returns {String|null} Single filter letter (R, G, B, L, S, H, O) or null if not found.
      */
-    this.processMergedMasters = function (window, fileBaseName, dir) {
-
-        if (this.runBlurXterminatorFull) {
-            if (RunBlurXterminatorFull(window)) {
-                console.noteln("BlurXTerminator full completed successfully on RGB image.");
-
-                fileBaseName = appendStageSuffixAndSave(window, fileBaseName, "bxt", dir, "RGB BlurXTerminator result");
-                if (fileBaseName == null)
-                    return null;
-            } else {
-                console.warningln("BlurXTerminator full failed on: " + window.mainView.id + ". Aborting further processing.");
+    this.extractFilterFromFITSHeader = function (window) {
+        try {
+            var keywords = window.keywords;
+            if (!keywords || keywords.length === 0) {
                 return null;
             }
-        }
 
-        if (this.runNoiseXterminator) {
-            if (RunNoiseXterminator(window)) {
-                console.noteln("NoiseXTerminator completed successfully on RGB image.");
+            // Search for filter-related keywords
+            for (var i = 0; i < keywords.length; i++) {
+                var kw = keywords[i];
+                var name = kw.name.toUpperCase();
+                var value = kw.value ? kw.value.toString().toUpperCase() : "";
 
-                fileBaseName = appendStageSuffixAndSave(window, fileBaseName, "nxt", dir, "RGB NoiseXTerminator result");
-                if (fileBaseName == null)
-                    return null;
-            } else {
-                console.warningln("NoiseXTerminator failed on: " + window.mainView.id + ". Aborting further processing.");
-                return null;
-            }
-        }
-
-        var starsWindow = null;
-        var starlessWindow = null;
-
-        if (this.runStarXterminator) {
-            if (RunStarXterminator(window, true)) {
-                console.noteln("StarXTerminator completed successfully on RGB image.");
-                starlessWindow = window;
-                starlessWindow.mainView.id += "_starless";
-                var outPath = dir + "/" + fileBaseName + "_starless" + ".xisf";
-                console.noteln("Saving starless image: " + fileBaseName + "_starless" + ".xisf");
-                if (!saveWindowAsXISF(starlessWindow, outPath, "Starless result"))
-                    return null;
-
-                starsWindow = findWindowById(fileBaseName + "_stars");
-
-                if (starsWindow) {                    
-                    var starsFilename = fileBaseName + "_stars";
-                    var outPath = dir + "/" + starsFilename + ".xisf";
-                    console.noteln("Saving stars image: " + starsFilename + ".xisf");
-                    if (!saveWindowAsXISF(starsWindow, outPath, "Stars result"))
-                        return null;
-                } else {
-                    console.warningln("Could not find stars image created by StarXTerminator for RGB image.");
+                // Check FILTER keyword
+                if (name === "FILTER" || name === "FILTERID" || name === "INSFLTR") {
+                    // Look for single letter or common filter names
+                    var match = /([RGBHSOL])/i.exec(value);
+                    if (match) {
+                        return match[1].toUpperCase();
+                    }
+                    
+                    // Map common filter names to letters
+                    if (value.indexOf("RED") >= 0) return "R";
+                    if (value.indexOf("GREEN") >= 0) return "G";
+                    if (value.indexOf("BLUE") >= 0) return "B";
+                    if (value.indexOf("LUMI") >= 0 || value.indexOf("LUMINANCE") >= 0) return "L";
+                    if (value.indexOf("HA") >= 0 || value.indexOf("H-ALPHA") >= 0) return "S";
+                    if (value.indexOf("OIII") >= 0 || value.indexOf("[OIII]") >= 0) return "O";
+                    if (value.indexOf("SII") >= 0 || value.indexOf("[SII]") >= 0) return "H";
                 }
-            } else {
-                console.warningln("StarXTerminator failed on: " + window.mainView.id);
-                return null;
             }
-        } else {
-            // Intentional: when SXT is disabled, we skip star/starless-only branches and treat this stage as complete.
-            console.noteln("Skipping StarXTerminator because it not enabled.");
-            return true;
+        } catch (e) {
+            console.warningln("Error reading FITS keywords: " + e.message);
+        }
+        
+        return null;
+    };
+
+    /**
+     * @function detectBranches
+     * @summary Determines which processing branches exist based on loaded images.
+     * @returns {Object} Object with boolean flags: hasSHO, hasRGB, hasL, isSHOPrimary
+     */
+    this.detectBranches = function () {
+        var hasSHO = !!(windowsDictionary.S || windowsDictionary.H || windowsDictionary.O);
+        var hasRGB = !!(windowsDictionary.R && windowsDictionary.G && windowsDictionary.B);
+        var hasL = !!windowsDictionary.L;
+
+        return {
+            hasSHO: hasSHO,
+            hasRGB: hasRGB,
+            hasL: hasL,
+            isSHOPrimary: hasSHO && (!hasRGB || hasSHO)
+        };
+    };
+
+    /**
+     * @function getAvailablePalettes
+     * @summary Determines which narrowband palettes are available based on loaded channels.
+     * @returns {Object} Object with available palette names and indices
+     */
+    this.getAvailablePalettes = function () {
+        var hasS = !!windowsDictionary.S;
+        var hasH = !!windowsDictionary.H;
+        var hasO = !!windowsDictionary.O;
+
+        var allPalettes = ["SHO", "SHO2", "Hubble", "HOO", "Foraxx"];
+        var available = [];
+        var availableIndices = [];
+
+        // SHO requires all three channels
+        if (hasS && hasH && hasO) {
+            available.push("SHO");
+            availableIndices.push(0);
+            available.push("SHO2");
+            availableIndices.push(1);
+            available.push("Hubble");
+            availableIndices.push(2);
         }
 
-        // Only proceed if we have both stars and starless images to work with
-        if (starsWindow == null || starlessWindow == null) {
-            console.warningln("StarXTerminator did not produce both stars and starless images. Skipping further processing.");  
+        // HOO requires H and O (S is optional)
+        if (hasH && hasO) {
+            available.push("HOO");
+            availableIndices.push(3);
+        }
+
+        // Foraxx requires all three channels
+        if (hasS && hasH && hasO) {
+            available.push("Foraxx");
+            availableIndices.push(4);
+        }
+
+        return {
+            palettes: available,
+            indices: availableIndices,
+            hasSHO: hasS && hasH && hasO,
+            hasHOO: hasH && hasO,
+            message: (hasS && hasH && hasO) ? "Full SHO available" : (hasH && hasO) ? "Limited to HOO palette (S channel missing)" : "Insufficient narrowband channels"
+        };
+    };
+
+    /**
+     * @function applyProfileParameters
+     * @summary Applies profile-driven parameters to tool functions.
+     * @param {String} branchType Type of branch: "SHO", "RGB", "L", or "RGB_STARS"
+     * @returns {Object} Configuration object with parameters for all tools
+     */
+    this.applyProfileParameters = function (branchType) {
+        return getBranchConfig(this.targetProfile, branchType);
+    };
+
+    /**
+     * @function logAppliedProcess
+     * @summary Logs a process application with its parameters to the applied processes list.
+     * @param {String} processName Name of the process (e.g., "Gradient Correction", "BlurXTerminator Full")
+     * @param {String} branchType Type of branch (e.g., "RGB", "SHO", "L")
+     * @param {Object} params Profile parameters used for this process
+     * @returns {void}
+     */
+    this.logAppliedProcess = function (processName, branchType, params) {
+        var paramStr = "";
+        if (params && typeof params === 'object') {
+            var paramList = [];
+            for (var key in params) {
+                if (params.hasOwnProperty(key)) {
+                    var val = params[key];
+                    // Format boolean and numeric values nicely
+                    if (typeof val === 'boolean') {
+                        paramList.push(key + "=" + (val ? "true" : "false"));
+                    } else if (typeof val === 'number') {
+                        paramList.push(key + "=" + val.toFixed(2));
+                    } else {
+                        paramList.push(key + "=" + val);
+                    }
+                }
+            }
+            if (paramList.length > 0) {
+                paramStr = " [" + paramList.join(", ") + "]";
+            }
+        }
+        
+        var logEntry = processName + " (" + branchType + ")" + paramStr;
+        this.appliedProcesses.push(logEntry);
+        console.noteln("Logged process: " + logEntry);
+    };
+
+    /**
+     * @function processRGBBranch
+     * @summary Processes RGB channels: GC → BXT Correct Only → Combine → BXT Full → NXT → SXT → MAS.
+     * @param {Object} windows Dictionary of open image windows
+     * @param {Object} config Profile-driven configuration
+     * @param {String} dir Output directory
+     * @param {Boolean} hasNarrowband Whether narrowband (SHO/HOO) is being processed
+     * @returns {Boolean} True if successful
+     */
+    this.processRGBBranch = function (windows, config, dir, hasNarrowband) {
+        console.noteln("=== Processing RGB Branch (Broadband Primary) ===");
+
+        var rgbChannels = [];
+        if (windows.R) rgbChannels.push({ window: windows.R, name: "R" });
+        if (windows.G) rgbChannels.push({ window: windows.G, name: "G" });
+        if (windows.B) rgbChannels.push({ window: windows.B, name: "B" });
+
+        if (rgbChannels.length === 0) {
+            console.warningln("No RGB channels found");
             return false;
         }
 
-        if (this.runMultiscaleAdaptiveStretch) {
-            if (RunMultiscaleAdaptiveStretch(starlessWindow)) {
-                console.noteln("MultiscaleAdaptiveStretch completed successfully on: " + starlessWindow.mainView.id);
-                starlessWindow.mainView.id += "_mas";
-                var masOutPath = dir + "/" + starlessWindow.mainView.id + ".xisf";
-                if (!saveWindowAsXISF(starlessWindow, masOutPath, "MAS result"))
+        // Apply GC to each channel if enabled
+        if (this.runGradientCorrection) {
+            for (var i = 0; i < rgbChannels.length; i++) {
+                var ch = rgbChannels[i];
+                console.noteln("Applying Gradient Correction to " + ch.name + " (profile: " + this.targetProfile + ")");
+                if (!RunGradientCorrection(ch.window, this.targetProfile)) {
+                    console.warningln("GradientCorrection failed on " + ch.name);
                     return false;
-                if (this.saveTIFFs) {
-                    console.noteln("Saving 16bit TIFF for: " + starlessWindow.mainView.id);
-                    var tifOutPath = dir + "/" + starlessWindow.mainView.id + ".tif";
-                    saveTIFF(starlessWindow, tifOutPath);
                 }
-            } else {
-                console.warningln("MultiscaleAdaptiveStretch failed on: " + starlessWindow.mainView.id);
-                return false;
+                this.logAppliedProcess("Gradient Correction", "RGB", config.gc);
+                appendStageSuffixAndSave(ch.window, ch.name, "gc", dir, ch.name + " after GC");
             }
         }
 
-        if (this.runStarStretch) {
-            if (RunStarStretch(starsWindow)) {
-                console.noteln("Star Stretch completed successfully on: " + starsWindow.mainView.id);
-                starsWindow.mainView.id += "_stretch";
-                var stretchOutPath = dir + "/" + starsWindow.mainView.id + ".xisf";
-                if (!saveWindowAsXISF(starsWindow, stretchOutPath, "StarStretch result"))
+        // Apply BXT Correct Only to each channel if enabled
+        if (this.runBlurXterminatorCorrectOnly) {
+            for (var i = 0; i < rgbChannels.length; i++) {
+                var ch = rgbChannels[i];
+                console.noteln("Applying BlurXTerminator (Correct Only) to " + ch.name);
+                if (!RunBlurXterminatorCorrectOnly(ch.window)) {
+                    console.warningln("BlurXTerminator Correct Only failed on " + ch.name);
                     return false;
-                if (this.saveTIFFs) {
-                    console.noteln("Saving 16bit TIFF for: " + starsWindow.mainView.id);
-                    var tifOutPath = dir + "/" + starsWindow.mainView.id + ".tif";
-                    saveTIFF(starsWindow, tifOutPath);
                 }
-            } else {
-                console.warningln("StarStretch failed on: " + starsWindow.mainView.id);
+                this.logAppliedProcess("BlurXTerminator (Correct Only)", "RGB", null);
+                appendStageSuffixAndSave(ch.window, ch.name, "bxt_correct", dir, ch.name + " after BXT Correct");
+            }
+        }
+
+        // Combine RGB channels - use current window IDs from rgbChannels
+        var combinedWindow = null;
+        if (this.runRGBChannelCombination && rgbChannels.length > 1) {
+            console.noteln("Combining RGB channels");
+            // Get current window IDs (they may have changed due to stage processing)
+            var rId = rgbChannels[0].window.mainView.id;
+            var gId = rgbChannels[1].window.mainView.id;
+            var bId = rgbChannels[2].window.mainView.id;
+            combinedWindow = this.combineChannels(rId, gId, bId, "RGB", "RGB", dir);
+            if (!combinedWindow) {
+                console.warningln("RGB combination failed");
                 return false;
+            }
+        } else if (rgbChannels.length === 1) {
+            combinedWindow = rgbChannels[0].window;
+        }
+
+        if (!combinedWindow) {
+            console.warningln("No combined RGB window");
+            return false;
+        }
+
+        // Run SPCC
+        if (this.runSPCC) {
+            console.noteln("Applying SPCC to RGB");
+            if (!RunSPCC(combinedWindow)) {
+                console.warningln("SPCC failed on RGB");
+                return false;
+            }
+            appendStageSuffixAndSave(combinedWindow, "RGB", "spcc", dir, "RGB after SPCC");
+        }
+
+        // Apply BXT Full with profile settings
+        if (this.runBlurXterminatorFull) {
+            console.noteln("Applying BlurXTerminator Full to RGB (profile: " + this.targetProfile + ")");
+            if (!RunBlurXterminatorFull(combinedWindow, this.targetProfile)) {
+                console.warningln("BlurXTerminator Full failed on RGB");
+                return false;
+            }
+            this.logAppliedProcess("BlurXTerminator Full", "RGB", config.bxt);
+            appendStageSuffixAndSave(combinedWindow, "RGB", "bxt_full", dir, "RGB after BXT Full");
+        }
+
+        // Apply NXT with profile settings
+        if (this.runNoiseXterminator) {
+            console.noteln("Applying NoiseXTerminator to RGB (profile: " + this.targetProfile + ")");
+            if (!RunNoiseXterminator(combinedWindow, this.targetProfile)) {
+                console.warningln("NoiseXTerminator failed on RGB");
+                return false;
+            }
+            this.logAppliedProcess("NoiseXTerminator", "RGB", config.nxt);
+            appendStageSuffixAndSave(combinedWindow, "RGB", "nxt", dir, "RGB after NXT");
+        }
+
+        // Apply SXT
+        if (this.runStarXterminator) {
+            console.noteln("Applying StarXTerminator to RGB");
+            if (!RunStarXterminator(combinedWindow, true)) {
+                console.warningln("StarXTerminator failed on RGB");
+                return false;
+            }
+
+            // StarXTerminator modifies the original window in-place to become starless
+            // and creates a new window with _stars suffix for the star image
+            var currentId = combinedWindow.mainView.id;
+            var starlessWindow = combinedWindow;  // Original window is now the starless version
+            var starsWindow = findWindowById(currentId + "_stars");
+
+            if (!starsWindow) {
+                console.warningln("StarXTerminator did not produce stars image for " + currentId);
+                return false;
+            }
+
+            // Apply MAS to starless
+            if (this.runMultiscaleAdaptiveStretch) {
+                console.noteln("Applying MultiscaleAdaptiveStretch to RGB starless (profile: " + this.targetProfile + ")");
+                if (!RunMultiscaleAdaptiveStretch(starlessWindow, this.targetProfile)) {
+                    console.warningln("MultiscaleAdaptiveStretch failed on RGB starless");
+                    return false;
+                }
+                this.logAppliedProcess("MultiscaleAdaptiveStretch", "RGB", config.mas);
+                appendStageSuffixAndSave(starlessWindow, "RGB_starless", "mas", dir, "RGB starless after MAS");
+
+                // Always export RGB starless TIFF when R+G+B is present
+                if (this.saveTIFFs) {
+                    console.noteln("Saving RGB starless TIFF");
+                    var tifPath = dir + "/RGB_starless_mas.tif";
+                    this.exportTIFFWithTracking(starlessWindow, tifPath);
+                }
+            }
+
+            // Apply star stretch
+            if (this.runStarStretch) {
+                console.noteln("Applying StarStretch to RGB stars");
+                if (!RunStarStretch(starsWindow)) {
+                    console.warningln("StarStretch failed on RGB stars");
+                    return false;
+                }
+                appendStageSuffixAndSave(starsWindow, "RGB_stars", "stretch", dir, "RGB stars after stretch");
+
+                // Always export RGB stars TIFF when R+G+B is present
+                if (this.saveTIFFs) {
+                    console.noteln("Saving RGB stars TIFF");
+                    var tifPath = dir + "/RGB_stars_stretch.tif";
+                    this.exportTIFFWithTracking(starsWindow, tifPath);
+                }
+            }
+        }
+
+        return true;
+    };
+
+    /**
+     * @function processSHOBranch
+     * @summary Processes narrowband SHO/HOO branches with linear fit, combination, BXT, NXT, SXT, MAS.
+     * @param {Object} windows Dictionary of open image windows
+     * @param {Object} config Profile-driven configuration
+     * @param {String} dir Output directory
+     * @returns {Boolean} True if successful
+     */
+    this.processSHOBranch = function (windows, config, dir) {
+        console.noteln("=== Processing SHO Branch (Narrowband Primary) ===");
+
+        var shoChannels = [];
+        if (windows.S) shoChannels.push({ window: windows.S, name: "S" });
+        if (windows.H) shoChannels.push({ window: windows.H, name: "H" });
+        if (windows.O) shoChannels.push({ window: windows.O, name: "O" });
+
+        if (shoChannels.length === 0) {
+            console.warningln("No SHO channels found");
+            return false;
+        }
+
+        // Apply GC to each channel if enabled
+        if (this.runGradientCorrection) {
+            for (var i = 0; i < shoChannels.length; i++) {
+                var ch = shoChannels[i];
+                console.noteln("Applying Gradient Correction to " + ch.name + " (profile: " + this.targetProfile + ")");
+                if (!RunGradientCorrection(ch.window, this.targetProfile)) {
+                    console.warningln("GradientCorrection failed on " + ch.name);
+                    return false;
+                }
+                this.logAppliedProcess("Gradient Correction", "SHO", config.gc);
+                appendStageSuffixAndSave(ch.window, ch.name, "gc", dir, ch.name + " after GC");
+            }
+        }
+
+        // Apply BXT Correct Only to each channel if enabled
+        if (this.runBlurXterminatorCorrectOnly) {
+            for (var i = 0; i < shoChannels.length; i++) {
+                var ch = shoChannels[i];
+                console.noteln("Applying BlurXTerminator (Correct Only) to " + ch.name);
+                if (!RunBlurXterminatorCorrectOnly(ch.window)) {
+                    console.warningln("BlurXTerminator Correct Only failed on " + ch.name);
+                    return false;
+                }
+                this.logAppliedProcess("BlurXTerminator (Correct Only)", "SHO", null);
+                appendStageSuffixAndSave(ch.window, ch.name, "bxt_correct", dir, ch.name + " after BXT Correct");
+            }
+        }
+
+        // Linear fit across channels
+        if (this.runLinearFit && shoChannels.length > 1) {
+            console.noteln("Running Linear Fit across SHO channels");
+            var sView = null, hView = null, oView = null;
+            for (var i = 0; i < shoChannels.length; i++) {
+                if (shoChannels[i].name === "S") sView = shoChannels[i].window.mainView;
+                else if (shoChannels[i].name === "H") hView = shoChannels[i].window.mainView;
+                else if (shoChannels[i].name === "O") oView = shoChannels[i].window.mainView;
+            }
+            if (!RunLinearFit(sView, hView, oView)) {
+                console.warningln("Linear Fit failed");
+                return false;
+            }
+            // Save after linear fit
+            for (var i = 0; i < shoChannels.length; i++) {
+                appendStageSuffixAndSave(shoChannels[i].window, shoChannels[i].name, "linear_fit", dir, shoChannels[i].name + " after Linear Fit");
+            }
+        }
+
+        // Combine SHO channels
+        var combinedWindow = null;
+        if (this.runSHOChannelCombination && shoChannels.length > 1) {
+            console.noteln("Combining SHO channels with palette: " + this.shoPaletteMode);
+            var paletteMode = this.shoPaletteMode || "SHO";
+            // Get current window IDs (they may have changed due to stage processing)
+            var sChannelId = "";
+            var hChannelId = "";
+            var oChannelId = "";
+            for (var i = 0; i < shoChannels.length; i++) {
+                if (shoChannels[i].name === "S") sChannelId = shoChannels[i].window.mainView.id;
+                else if (shoChannels[i].name === "H") hChannelId = shoChannels[i].window.mainView.id;
+                else if (shoChannels[i].name === "O") oChannelId = shoChannels[i].window.mainView.id;
+            }
+            combinedWindow = this.combineChannels(sChannelId, hChannelId, oChannelId, paletteMode, paletteMode, dir);
+            if (!combinedWindow) {
+                console.warningln("SHO combination failed");
+                return false;
+            }
+        } else if (shoChannels.length === 1) {
+            combinedWindow = shoChannels[0].window;
+        }
+
+        if (!combinedWindow) {
+            console.warningln("No combined SHO window");
+            return false;
+        }
+
+        // Apply BXT Full with profile settings
+        if (this.runBlurXterminatorFull) {
+            console.noteln("Applying BlurXTerminator Full to SHO (profile: " + this.targetProfile + ")");
+            if (!RunBlurXterminatorFull(combinedWindow, this.targetProfile)) {
+                console.warningln("BlurXTerminator Full failed on SHO");
+                return false;
+            }
+            this.logAppliedProcess("BlurXTerminator Full", "SHO", config.bxt);
+            appendStageSuffixAndSave(combinedWindow, "SHO", "bxt_full", dir, "SHO after BXT Full");
+        }
+
+        // Apply NXT with profile settings
+        if (this.runNoiseXterminator) {
+            console.noteln("Applying NoiseXTerminator to SHO (profile: " + this.targetProfile + ")");
+            if (!RunNoiseXterminator(combinedWindow, this.targetProfile)) {
+                console.warningln("NoiseXTerminator failed on SHO");
+                return false;
+            }
+            this.logAppliedProcess("NoiseXTerminator", "SHO", config.nxt);
+            appendStageSuffixAndSave(combinedWindow, "SHO", "nxt", dir, "SHO after NXT");
+        }
+
+        // Apply SXT
+        if (this.runStarXterminator) {
+            console.noteln("Applying StarXTerminator to SHO");
+            if (!RunStarXterminator(combinedWindow, true)) {
+                console.warningln("StarXTerminator failed on SHO");
+                return false;
+            }
+
+            // StarXTerminator modifies the original window in-place to become starless
+            // and creates a new window with _stars suffix for the star image
+            var currentId = combinedWindow.mainView.id;
+            var starlessWindow = combinedWindow;  // Original window is now the starless version
+            var starsWindow = findWindowById(currentId + "_stars");
+
+            if (!starsWindow) {
+                console.warningln("StarXTerminator did not produce stars image for " + currentId);
+                return false;
+            }
+
+            // Apply MAS to starless
+            if (this.runMultiscaleAdaptiveStretch) {
+                console.noteln("Applying MultiscaleAdaptiveStretch to SHO starless (profile: " + this.targetProfile + ")");
+                if (!RunMultiscaleAdaptiveStretch(starlessWindow, this.targetProfile)) {
+                    console.warningln("MultiscaleAdaptiveStretch failed on SHO starless");
+                    return false;
+                }
+                this.logAppliedProcess("MultiscaleAdaptiveStretch", "SHO", config.mas);
+                appendStageSuffixAndSave(starlessWindow, "SHO_starless", "mas", dir, "SHO starless after MAS");
+
+                if (this.saveTIFFs) {
+                    console.noteln("Saving SHO starless TIFF");
+                    var tifPath = dir + "/SHO_starless_mas.tif";
+                    this.exportTIFFWithTracking(starlessWindow, tifPath);
+                }
+            }
+
+            // Apply star stretch (export stars if no RGB present)
+            if (this.runStarStretch) {
+                console.noteln("Applying StarStretch to SHO stars");
+                if (!RunStarStretch(starsWindow)) {
+                    console.warningln("StarStretch failed on SHO stars");
+                    return false;
+                }
+                appendStageSuffixAndSave(starsWindow, "SHO_stars", "stretch", dir, "SHO stars after stretch");
+
+                if (this.saveTIFFs) {
+                    console.noteln("Saving SHO stars TIFF");
+                    var tifPath = dir + "/SHO_stars_stretch.tif";
+                    this.exportTIFFWithTracking(starsWindow, tifPath);
+                }
+            }
+        }
+
+        return true;
+    };
+
+    /**
+     * @function processLuminanceBranch
+     * @summary Processes standalone luminance branch with BXT, NXT, SXT, MAS.
+     * @param {Object} windows Dictionary of open image windows
+     * @param {Object} config Profile-driven configuration
+     * @param {String} dir Output directory
+     * @returns {Boolean} True if successful
+     */
+    this.processLuminanceBranch = function (windows, config, dir) {
+        console.noteln("=== Processing Luminance Branch ===");
+
+        var luminanceWindow = windows.L;
+        if (!luminanceWindow) {
+            console.warningln("Luminance window not found");
+            return false;
+        }
+
+        // Apply GC if enabled
+        if (this.runGradientCorrection) {
+            console.noteln("Applying Gradient Correction to L (profile: " + this.targetProfile + ")");
+            if (!RunGradientCorrection(luminanceWindow, this.targetProfile)) {
+                console.warningln("GradientCorrection failed on L");
+                return false;
+            }
+            this.logAppliedProcess("Gradient Correction", "L", config.gc);
+            appendStageSuffixAndSave(luminanceWindow, "L", "gc", dir, "L after GC");
+        }
+
+        // Apply BXT Correct Only if enabled
+        if (this.runBlurXterminatorCorrectOnly) {
+            console.noteln("Applying BlurXTerminator (Correct Only) to L");
+            if (!RunBlurXterminatorCorrectOnly(luminanceWindow)) {
+                console.warningln("BlurXTerminator Correct Only failed on L");
+                return false;
+            }
+            this.logAppliedProcess("BlurXTerminator (Correct Only)", "L", null);
+            appendStageSuffixAndSave(luminanceWindow, "L", "bxt_correct", dir, "L after BXT Correct");
+        }
+
+        // Apply BXT Full with profile settings
+        if (this.runBlurXterminatorFull) {
+            console.noteln("Applying BlurXTerminator Full to L (profile: " + this.targetProfile + ")");
+            if (!RunBlurXterminatorFull(luminanceWindow, this.targetProfile)) {
+                console.warningln("BlurXTerminator Full failed on L");
+                return false;
+            }
+            this.logAppliedProcess("BlurXTerminator Full", "L", config.bxt);
+            appendStageSuffixAndSave(luminanceWindow, "L", "bxt_full", dir, "L after BXT Full");
+        }
+
+        // Apply NXT with profile settings
+        if (this.runNoiseXterminator) {
+            console.noteln("Applying NoiseXTerminator to L (profile: " + this.targetProfile + ")");
+            if (!RunNoiseXterminator(luminanceWindow, this.targetProfile)) {
+                console.warningln("NoiseXTerminator failed on L");
+                return false;
+            }
+            this.logAppliedProcess("NoiseXTerminator", "L", config.nxt);
+            appendStageSuffixAndSave(luminanceWindow, "L", "nxt", dir, "L after NXT");
+        }
+
+        // Apply SXT
+        if (this.runStarXterminator) {
+            console.noteln("Applying StarXTerminator to L");
+            if (!RunStarXterminator(luminanceWindow, true)) {
+                console.warningln("StarXTerminator failed on L");
+                return false;
+            }
+
+            // StarXTerminator modifies the original window in-place to become starless
+            var currentId = luminanceWindow.mainView.id;
+            var starlessWindow = luminanceWindow;  // Original window is now the starless version
+
+            // Apply MAS to starless
+            if (this.runMultiscaleAdaptiveStretch) {
+                console.noteln("Applying MultiscaleAdaptiveStretch to L starless (profile: " + this.targetProfile + ")");
+                if (!RunMultiscaleAdaptiveStretch(starlessWindow, this.targetProfile)) {
+                    console.warningln("MultiscaleAdaptiveStretch failed on L starless");
+                    return false;
+                }
+                this.logAppliedProcess("MultiscaleAdaptiveStretch", "L", config.mas);
+                appendStageSuffixAndSave(starlessWindow, "L_starless", "mas", dir, "L starless after MAS");
+
+                if (this.saveTIFFs) {
+                    console.noteln("Saving L starless TIFF");
+                    var tifPath = dir + "/L_starless_mas.tif";
+                    this.exportTIFFWithTracking(starlessWindow, tifPath);
+                }
             }
         }
 
@@ -213,11 +780,15 @@ function ProcessMono() {
 
     /**
      * @function prepInputFiles
-     * @summary Opens and preprocesses all user specified master files
-     * Deletes crop_mask windows
-     * Builds the windowsDictionary with LRGBSHO windows
-     * Renames the windows to a single filter letter (R, G, B, L, S, H, O)
-     * Saves the renamed windows as XISF in the output directory (e.g.: R.xisf, G.xisf, B.xisf, L.xisf, S.xisf, H.xisf, O.xisf)
+     * @summary Opens and preprocesses all user specified master files.
+     * This function:
+     * - Accepts inputs with single-letter names (R.xisf, S.xisf, etc.) OR FILTER-X naming OR FITS header detection
+     * - Validates filter type from FITS header after opening
+     * - Deletes crop_mask windows from the input files
+     * - Renames windows to single filter letters (R, G, B, L, S, H, O)
+     * - Saves the base channel files as XISF (e.g.: R.xisf, G.xisf, B.xisf, L.xisf, S.xisf, H.xisf, O.xisf)
+     * These base files represent the original input data minus the crop_mask view.
+     * All subsequent processing steps are cumulative - each stage file includes all previous steps.
      * @returns {String|null} Output directory path, or null on failure.
      */
     this.prepInputFiles = function () {
@@ -263,7 +834,7 @@ function ProcessMono() {
             var window = null;
             var lastOutPath = "";
 
-            // Close crop_mask windows; extract filter letter from WBPP filename; rename and save.
+            // Close crop_mask windows; extract filter letter from filename or FITS header; rename and save.
             for (var i = windows.length - 1; i >= 0; --i) {
                 var w = windows[i];
                 console.noteln("Scanning: " + filePath + " | Opened window: " + w.mainView.id);
@@ -275,18 +846,44 @@ function ProcessMono() {
                 }
 
                 var fileName = File.extractName(filePath);
+                var fileNameNoExt = fileName.replace(/\.[^.]+$/, "");  // Remove extension
+                var filter = null;
 
-                // Skip files already renamed to a single filter letter
-                if (/^[LRGBHSO]$/i.test(fileName))
-                    continue;
-
-                var match = /FILTER-([A-Za-z])/.exec(fileName);
-                if (!match) {
-                    console.noteln("Skipping (no FILTER- tag): " + fileName);
-                    continue;
+                // Try 1: Check if filename is a single letter (R.xisf, S.xisf, etc.)
+                if (/^[LRGBHSO]$/i.test(fileNameNoExt)) {
+                    filter = fileNameNoExt.toUpperCase();
+                    console.noteln("Filter detected from filename: " + filter);
+                } else {
+                    // Try 2: Look for FILTER-X in filename
+                    var match = /FILTER-([A-Za-z])/.exec(fileName);
+                    if (match) {
+                        filter = match[1].toUpperCase();
+                        console.noteln("Filter detected from FILTER- tag: " + filter);
+                    }
                 }
 
-                var filter = match[1].toUpperCase();
+                // Try 3: If still not found, check FITS header
+                if (!filter) {
+                    console.noteln("Filter not found in filename, checking FITS header...");
+                    filter = this.extractFilterFromFITSHeader(w);
+                    if (filter) {
+                        console.noteln("Filter detected from FITS header: " + filter);
+                    } else {
+                        console.warningln("Could not determine filter type for: " + fileName);
+                        return null;
+                    }
+                }
+
+                // Validation: Check FITS header to confirm filter type
+                var fitsFilter = this.extractFilterFromFITSHeader(w);
+                if (fitsFilter && fitsFilter !== filter) {
+                    console.warningln("WARNING: Filter mismatch for " + fileName);
+                    console.warningln("  Detected from filename/tag: " + filter);
+                    console.warningln("  Found in FITS header: " + fitsFilter);
+                    console.warningln("  Using FITS header value: " + fitsFilter);
+                    filter = fitsFilter;  // Trust FITS header over filename
+                }
+
                 var outPath = dir + "/" + filter + ".xisf";
 
                 console.noteln("Saving image: " + fileName + " → " + filter + ".xisf");
@@ -327,181 +924,381 @@ function ProcessMono() {
      * It first calls prepInputFiles() to open and preprocess all input files
      * Runs the SHO, RGB, and Luminance branches as applicable.
      * Combines channels into RGB, SHO or just L depending on which channels are present.
-     * Calls processMergedMasters() to finalize each result window (optional MAS, TIFF export).
      * @returns {void}
      */
     this.mergeMasters = function () {
         // Pipeline overview:
         // 1) Process all input files and populate windowsDictionary
-        // 2) If S/H/O are present, run the full SHO branch
-        // 3) If R/G/B are present, run the full RGB branch
-        // 4) If L is present, run the luminance branch
+        // 2) Detect which branches exist (SHO, RGB, L)
+        // 3) Route to appropriate branch-specific processing workflows
+        // 4) Apply profile-driven configurations for each branch
+
+        // Start tracking processing time and status
+        this.processingStartTime = new Date();
+        this.statusMessages = [];
+        this.exportedFiles = [];
+        this.appliedProcesses = [];
+
+        this.statusMessages.push("Profile: " + this.targetProfile);
+        this.statusMessages.push("Processing started at " + this.processingStartTime.toLocaleString());
+
+        // Push the list of filenames to this.statusMessages
+        this.statusMessages.push("Input files:");
+        for (var i = 0; i < this.inputFiles.length; i++) {
+            this.statusMessages.push(" - " + this.inputFiles[i]);
+        }
+        
         var dir = this.prepInputFiles();
         if (dir == null)
             return;
 
-        console.show(); // Ensure console is visible for the next steps since it sometimes closes on its own.
+        console.show(); // Ensure console is visible
 
-        // Branch 1: SHO (independent of RGB and L)
-        if (windowsDictionary["S"] && windowsDictionary["H"] && windowsDictionary["O"]) {
-            console.noteln("Found all SHO channels.  Starting processing...");
-            var shoChannels = ["S", "H", "O"];
-            for (var ci = 0; ci < shoChannels.length; ++ci) {
-                var ch = windowsDictionary[shoChannels[ci]];
-                if (this.runGraxpertBG) {
-                    if (!RunGraxpertBackgroundExtraction(ch)) {
-                        console.warningln("GraXpert failed on: " + ch.mainView.id);
-                        return;
-                    }
-                    // After RunGraxpertBackgroundExtraction, get the new active window
-                    ch = ImageWindow.activeWindow;
-                    windowsDictionary[shoChannels[ci]] = ch;
-                }
-                if (this.runBlurXterminatorCorrectOnly) {
-                    if (!RunBlurXterminatorCorrectOnly(ch)) {
-                        console.warningln("BlurXTerminator failed on: " + ch.mainView.id);
-                        return;
-                    }
-                }
-                saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", ch.mainView.id + " channel preprocessing result");
-            }
+        // Detect which branches exist
+        var branches = this.detectBranches();
+        console.noteln("Branch detection: SHO=" + branches.hasSHO + ", RGB=" + branches.hasRGB + ", L=" + branches.hasL);
+        this.statusMessages.push("Branches detected: SHO=" + branches.hasSHO + ", RGB=" + branches.hasRGB + ", L=" + branches.hasL);
 
-            if (this.runLinearFit) {
-                RunLinearFit(windowsDictionary["S"].mainView, windowsDictionary["H"].mainView, windowsDictionary["O"].mainView);
-            }
+        // Get profile configuration for routing
+        var config = this.applyProfileParameters("SHO"); // Profile will be applied per-branch
 
-            var fileBaseName = this.shoPaletteMode; // used to be "SHO" always;
+        // ===== SHO/HOO BRANCH =====
+        if (branches.hasSHO) {
+            console.noteln("=== SHO Branch Detected ===");
+            var shoChannels = [];
+            if (windowsDictionary.S) shoChannels.push("S");
+            if (windowsDictionary.H) shoChannels.push("H");
+            if (windowsDictionary.O) shoChannels.push("O");
 
-            if (this.runSHOChannelCombination) {
-                var shoWindow = this.combineChannels("S", "H", "O", this.shoPaletteMode, fileBaseName, dir);
-                if (!shoWindow)
+            console.noteln("SHO channels found: " + shoChannels.join(", "));
+
+            // // Preprocess each channel with GraXpert and BXT Correct Only
+            // for (var i = 0; i < shoChannels.length; i++) {
+            //     var chKey = shoChannels[i];
+            //     var ch = windowsDictionary[chKey];
+
+            //     console.noteln("Preprocessing " + chKey + " channel");
+
+            //     if (this.runGraxpertBG) {
+            //         if (!RunGraxpertBackgroundExtraction(ch)) {
+            //             console.warningln("GraXpert failed on " + ch.mainView.id);
+            //             return;
+            //         }
+            //         ch = ImageWindow.activeWindow;
+            //         windowsDictionary[chKey] = ch;
+            //     }
+
+            //     if (this.runBlurXterminatorCorrectOnly) {
+            //         if (!RunBlurXterminatorCorrectOnly(ch)) {
+            //             console.warningln("BlurXTerminator Correct Only failed on " + ch.mainView.id);
+            //             return;
+            //         }
+            //     }
+
+            //     saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", chKey + " preprocessing result");
+            // }
+
+            // // Linear fit
+            // if (this.runLinearFit && shoChannels.length > 1) {
+            //     console.noteln("Running Linear Fit on SHO channels");
+            //     var sWindow = windowsDictionary.S;
+            //     var hWindow = windowsDictionary.H;
+            //     var oWindow = windowsDictionary.O;
+            //     RunLinearFit(sWindow ? sWindow.mainView : null, hWindow ? hWindow.mainView : null, oWindow ? oWindow.mainView : null);
+            // }
+
+            // // Combine SHO channels
+            // var shoWindow = null;
+            // if (this.runSHOChannelCombination) {
+            //     var paletteMode = this.shoPaletteMode || "SHO";
+            //     console.noteln("Combining SHO channels with palette: " + paletteMode);
+            //     var shoChannelLetters = ["S", "H", "O"];
+            //     shoWindow = this.combineChannels(
+            //         windowsDictionary.S ? "S" : "",
+            //         "H",
+            //         "O",
+            //         paletteMode,
+            //         paletteMode,
+            //         dir
+            //     );
+            //     if (!shoWindow) {
+            //         console.warningln("SHO combination failed");
+            //         return;
+            //     }
+            // }
+
+            // Process SHO branch
+            //if (shoWindow || windowsDictionary.H) {
+                if (!this.processSHOBranch(windowsDictionary, config, dir))
                     return;
-            } else {
-                console.noteln("Skipping SHO combined processing because channel combination is disabled.");
-            }
-
-            if (shoWindow) {
-                if (!this.processMergedMasters(shoWindow, fileBaseName, dir))
-                    return;
-            }
-        // Branch 1a, only H & O are available for HOO combination
-        } else if (windowsDictionary["H"] && windowsDictionary["O"]) {
-            console.noteln("Found all HO channels.  Starting processing...");
-            if (this.shoPaletteMode !== "HOO") {
-                console.warningln(this.shoPaletteMode + " requested but no S channel is available.  Skipping processing");
-                return;
-            }
-            var shoChannels = ["", "H", "O"];
-            for (var ci = 0; ci < shoChannels.length; ++ci) {
-                var ch = windowsDictionary[shoChannels[ci]];
-                if (!ch) // Skip the S slot if name is ""
-                    continue;
-                if (this.runGraxpertBG) {
-                    if (!RunGraxpertBackgroundExtraction(ch)) {
-                        console.warningln("GraXpert failed on: " + ch.mainView.id);
-                        return;
-                    }
-                    // After RunGraxpertBackgroundExtraction, get the new active window
-                    ch = ImageWindow.activeWindow;
-                    windowsDictionary[shoChannels[ci]] = ch;
-                }
-                if (this.runBlurXterminatorCorrectOnly) {
-                    if (!RunBlurXterminatorCorrectOnly(ch)) {
-                        console.warningln("BlurXTerminator failed on: " + ch.mainView.id);
-                        return;
-                    }
-                }
-                saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", ch.mainView.id + " channel preprocessing result");
-            }
-
-            if (this.runLinearFit) {
-                RunLinearFit(null, windowsDictionary["H"].mainView, windowsDictionary["O"].mainView);
-            }
-
-            var fileBaseName = this.shoPaletteMode; // used to be "SHO" always;
-
-            if (this.runSHOChannelCombination) {
-                var shoWindow = this.combineChannels("S", "H", "O", this.shoPaletteMode, fileBaseName, dir);
-                if (!shoWindow)
-                    return;
-            } else {
-                console.noteln("Skipping SHO combined processing because channel combination is disabled.");
-            }
-
-            if (shoWindow) {
-                if (!this.processMergedMasters(shoWindow, fileBaseName, dir))
-                    return;
-            }
-        } else {
-            console.noteln("Skipping SHO processing because S/H/O or H/Oinputs were not all found.");
+            //}
         }
 
-        // Branch 2: RGB (independent of SHO and L)        
-        if (windowsDictionary["R"] && windowsDictionary["G"] && windowsDictionary["B"]) {
-            console.noteln("Found all RGB channels.  Starting processing");
-            var rgbChannels = ["R", "G", "B"];
-            for (var ci = 0; ci < rgbChannels.length; ++ci) {
-                var ch = windowsDictionary[rgbChannels[ci]];
-                if (this.runGraxpertBG) {
-                    if (!RunGraxpertBackgroundExtraction(ch)) {
-                        console.warningln("GraXpert failed on: " + ch.mainView.id);
-                        return;
-                    }
-                    // After RunGraxpertBackgroundExtraction, get the new active window
-                    ch = ImageWindow.activeWindow;
-                    windowsDictionary[rgbChannels[ci]] = ch;
-                }
-                if (this.runBlurXterminatorCorrectOnly) {
-                    if (!RunBlurXterminatorCorrectOnly(ch)) {
-                        console.warningln("BlurXTerminator failed on: " + ch.mainView.id);
-                        return;
-                    }
-                }
-                saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", ch.mainView.id + " channel preprocessing result");
-            }
+        // ===== RGB BRANCH =====
+        if (branches.hasRGB) {
+            console.noteln("=== RGB Branch Detected ===");
+            //var rgbChannels = ["R", "G", "B"];
 
-            var fileBaseName = "RGB";
+            // // Preprocess each channel with GraXpert and BXT Correct Only
+            // for (var i = 0; i < rgbChannels.length; i++) {
+            //     var chKey = rgbChannels[i];
+            //     var ch = windowsDictionary[chKey];
 
-            if (this.runRGBChannelCombination) {
-                var rgbWindow = this.combineChannels("R", "G", "B", "RGB", fileBaseName, dir);
-                if (!rgbWindow) {
-                    console.warningln("Failed to combine R/G/B channels into RGB. Aborting further processing.");
+            //     console.noteln("Preprocessing " + chKey + " channel");
+
+            //     if (this.runGraxpertBG) {
+            //         if (!RunGraxpertBackgroundExtraction(ch)) {
+            //             console.warningln("GraXpert failed on " + ch.mainView.id);
+            //             return;
+            //         }
+            //         ch = ImageWindow.activeWindow;
+            //         windowsDictionary[chKey] = ch;
+            //     }
+
+            //     if (this.runBlurXterminatorCorrectOnly) {
+            //         if (!RunBlurXterminatorCorrectOnly(ch)) {
+            //             console.warningln("BlurXTerminator Correct Only failed on " + ch.mainView.id);
+            //             return;
+            //         }
+            //     }
+
+            //     saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", chKey + " preprocessing result");
+            // }
+
+            // // Combine RGB channels
+            //var rgbWindow = null;
+            // if (this.runRGBChannelCombination) {
+            //     console.noteln("Combining RGB channels");
+            //     rgbWindow = this.combineChannels("R", "G", "B", "RGB", "RGB", dir);
+            //     if (!rgbWindow) {
+            //         console.warningln("RGB combination failed");
+            //         return;
+            //     }
+            // }
+
+            // Process RGB branch
+            //if (rgbWindow) {
+                if (!this.processRGBBranch(windowsDictionary, config, dir, branches.hasSHO))
                     return;
-                }
-            } else {
-                console.noteln("Skipping RGB combined processing because channel combination is disabled.");
-                return;
-            }
-
-            var fileBaseName = "RGB";
-            if (this.runSPCC) {
-                if (RunSPCC(rgbWindow)) {   
-                    fileBaseName = appendStageSuffixAndSave(rgbWindow, fileBaseName, "spcc", dir, "RGB SPCC result");
-                    if (fileBaseName == null)
-                        return;
-                } else {
-                    console.warningln("SPCC failed on: " + rgbWindow.mainView.id + ". Aborting further processing.");
-                    return;
-                }
-            }
-
-            if (!this.processMergedMasters(rgbWindow, fileBaseName, dir))
-                return;
-        } else {
-            console.noteln("Skipping RGB processing because R/G/B inputs were not all found.");
+            //}
         }
 
-        // Branch 3: Luminance (independent of SHO and RGB)
-        console.noteln("Checking for Luminance branch processing...");
-        if (windowsDictionary["L"]) {
-            if (!this.processMergedMasters(windowsDictionary["L"], "L", dir))
+        // ===== LUMINANCE BRANCH =====
+        if (branches.hasL) {
+            console.noteln("=== Luminance Branch Detected ===");
+            //var lWindow = windowsDictionary.L;
+
+            console.noteln("Preprocessing L channel");
+
+            // if (this.runGraxpertBG) {
+            //     if (!RunGraxpertBackgroundExtraction(lWindow)) {
+            //         console.warningln("GraXpert failed on L channel");
+            //         return;
+            //     }
+            //     lWindow = ImageWindow.activeWindow;
+            //     windowsDictionary.L = lWindow;
+            // }
+
+            // if (this.runBlurXterminatorCorrectOnly) {
+            //     if (!RunBlurXterminatorCorrectOnly(lWindow)) {
+            //         console.warningln("BlurXTerminator Correct Only failed on L channel");
+            //         return;
+            //     }
+            // }
+
+            // saveWindowAsXISF(lWindow, dir + "/" + lWindow.mainView.id + ".xisf", "L preprocessing result");
+
+            // Process L branch
+            if (!this.processLuminanceBranch(windowsDictionary, config, dir))
                 return;
-        } else {
-            console.noteln("Skipping L processing because no L input was found.");
+        }
+
+        if (!branches.hasSHO && !branches.hasRGB && !branches.hasL) {
+            console.warningln("No valid image branches detected (need SHO/HOO, RGB, or L channels)");
+            return;
         }
 
         console.noteln("*****   Processing complete.   *****");
+
+        // End processing and show status
+        this.processingEndTime = new Date();
+        var duration = (this.processingEndTime - this.processingStartTime) / 1000;
+        var minutes = Math.floor(duration / 60);
+        var seconds = Math.round(duration % 60);
+        var timeFormatted = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+        this.statusMessages.push("Processing completed in " + timeFormatted);
+        
+        // Add applied processes to status
+        if (this.appliedProcesses.length > 0) {
+            //this.statusMessages.push("");  // Blank line for readability
+            this.statusMessages.push("Processes Applied:");
+            for (var i = 0; i < this.appliedProcesses.length; i++) {
+                this.statusMessages.push("  • " + this.appliedProcesses[i]);
+            }
+        }
+        
+        this.statusMessages.push("");  // Blank line before output directory
+        this.statusMessages.push("Output directory: " + dir);
+
+        // Save all open windows before showing popup
+        this.saveAllOpenWindows();
+
+        // Save summary to file
+        this.saveSummaryToFile(dir);
+
+        // Show final status popup
+        this.showFinalStatusPopup();
     }
+
+    /**
+     * @function saveAllOpenWindows
+     * @summary Saves all open image windows to prevent unsaved data warnings when closing.
+     * @returns {void}
+     */
+    this.saveAllOpenWindows = function () {
+        console.noteln("Preparing to close: marking windows as saved...");
+        // Note: Windows in PixInsight that are modified will show save prompts on close.
+        // The best approach is to let PixInsight handle the save dialogs, or we can 
+        // force close without saving using forceClose() if the user wants automatic close.
+        // For now, we just ensure all windows are saved if they have file paths.
+        for (var i = ImageWindow.windows.length - 1; i >= 0; i--) {
+            var window = ImageWindow.windows[i];
+            if (!window.isNull && window.filePath && window.filePath.length > 0) {
+                try {
+                    if (window.modified) {
+                        window.save();
+                        console.noteln("  Saved: " + window.mainView.id);
+                    }
+                } catch (e) {
+                    console.warningln("  Could not save " + window.mainView.id + ": " + e.message);
+                }
+            }
+        }
+    };
+
+    /**
+     * @function showFinalStatusPopup
+     * @summary Displays a final status popup showing processing results.
+     * @returns {void}
+     */
+    this.showFinalStatusPopup = function () {
+        // Create a simple dialog to show status
+        function StatusDialog(engine) {
+            this.__base__ = Dialog;
+            this.__base__();
+
+            this.windowTitle = "ProcessMono - Processing Complete";
+            this.userResizable = true;
+
+            var statusText = engine.statusMessages.join("\n");
+            if (engine.exportedFiles && engine.exportedFiles.length > 0) {
+                statusText += "\n\nExported Files:\n";
+                for (var i = 0; i < engine.exportedFiles.length; i++) {
+                    statusText += "  • " + engine.exportedFiles[i] + "\n";
+                }
+            }
+
+            // Message area
+            var messageArea = new TextBox(this);
+            messageArea.readOnly = true;
+            messageArea.multiLine = true;
+            messageArea.wordWrapping = true;
+            messageArea.minWidth = 1000;
+            messageArea.minHeight = 500;
+            messageArea.text = statusText;
+
+            // OK button
+            var okButton = new PushButton(this);
+            okButton.text = "OK";
+            okButton.onClick = function () {
+                this.dialog.ok();
+            };
+
+            // Button sizer
+            var buttonSizer = new HorizontalSizer;
+            buttonSizer.addStretch();
+            buttonSizer.add(okButton);
+
+            // Main sizer
+            var mainSizer = new VerticalSizer;
+            mainSizer.margin = 10;
+            mainSizer.spacing = 10;
+            mainSizer.add(messageArea);
+            mainSizer.add(buttonSizer);
+
+            this.sizer = mainSizer;
+        }
+
+        StatusDialog.prototype = new Dialog;
+
+        var dlg = new StatusDialog(this);
+        dlg.execute();
+    };
+
+    /**
+     * @function exportTIFFWithTracking
+     * @summary Exports a TIFF file and tracks it in the exported files list.
+     * @param {ImageWindow} window Target image window.
+     * @param {String} filePath Full path to the TIFF file.
+     * @returns {void}
+     */
+    this.exportTIFFWithTracking = function (window, filePath) {
+        saveTIFF(window, filePath);
+        this.exportedFiles.push(filePath);
+        console.noteln("Exported: " + filePath);
+    };
+
+    /**
+     * @function saveSummaryToFile
+     * @summary Saves processing summary to Processing_Summary.md in the output directory.
+     * @param {String} outputDir Output directory path.
+     * @returns {void}
+     */
+    this.saveSummaryToFile = function (outputDir) {
+        try {
+            var summaryPath = outputDir + "/Processing_Report.md";
+            var file = new File;
+            file.createForWriting(summaryPath);
+            
+            if (!file.isOpen) {
+                console.warningln("Failed to create summary file: " + summaryPath);
+                return;
+            }
+
+            // Build markdown content
+            var markdown = "# ProcessMono - Processing Report\n\n";
+            markdown += "## Processing Summary\n\n";
+            
+            for (var i = 0; i < this.statusMessages.length; i++) {
+                var msg = this.statusMessages[i];
+                // Format key-value pairs as markdown list items
+                if (msg.indexOf(":") > -1) {
+                    markdown += "- **" + msg.split(":")[0].trim() + ":** " + msg.split(":").slice(1).join(":").trim() + "\n";
+                } else {
+                    markdown += "- " + msg + "\n";
+                }
+            }
+
+            // Add exported files section if present
+            if (this.exportedFiles && this.exportedFiles.length > 0) {
+                markdown += "\n## Exported Files\n\n";
+                for (var i = 0; i < this.exportedFiles.length; i++) {
+                    markdown += "- " + this.exportedFiles[i] + "\n";
+                }
+            }
+
+            // Add timestamp footer
+            markdown += "\n---\n";
+            markdown += "*Generated by ProcessMono on " + new Date().toLocaleString() + "*\n";
+
+            file.outTextLn(markdown);
+            file.close();
+            
+            console.noteln("Summary saved to: " + summaryPath);
+        } catch (e) {
+            console.warningln("Error saving summary file: " + e.message);
+        }
+    };
 
     /**
      * @function combineChannels
@@ -601,12 +1398,23 @@ function findWindowById(id) {
 /**
  * @function saveWindowAsXISF
  * @summary Saves a window as XISF with consistent logging and failure handling.
+ * Sets the Image Identifier to match the filename (minus .xisf extension).
  * @param {ImageWindow} window Source image window.
  * @param {String} outPath Destination XISF path.
  * @param {String} description Log label for this save operation.
  * @returns {Boolean} True on successful save.
  */
 function saveWindowAsXISF(window, outPath, description) {
+    // Extract filename without extension to use as Image Identifier
+    var fileName = File.extractName(outPath);
+    var fileBaseName = fileName.replace(/\.xisf$/i, "");
+    
+    // Ensure the Image Identifier matches the filename
+    if (window.mainView.id !== fileBaseName) {
+        window.mainView.id = fileBaseName;
+        window.windowTitle = fileBaseName;
+    }
+    
     // Centralized save wrapper so every write has consistent error handling.
     if (!window.saveAs(outPath, false, false, false, false)) {
         console.warningln("Failed to save " + description + " as: " + outPath);
@@ -654,23 +1462,30 @@ function saveViewWindow(view, description) {
 /**
  * @function appendStageSuffixAndSave
  * @summary Appends a stage suffix to the window and file name, then saves the stage result as XISF.
+ * Ensures the window identifier matches the filename exactly.
  * @param {ImageWindow} window Target image window.
- * @param {String} fileBaseName Current base file name.
+ * @param {String} fileBaseName Current base file name (usually the window's current ID).
  * @param {String} stageSuffix Stage suffix to append.
  * @param {String} dir Output directory path.
  * @param {String} description Log label for this save operation.
- * @returns {String|null} Next file base name, or null if save failed.
+ * @returns {String|null} New identifier (matches filename without extension), or null if save failed.
  */
 function appendStageSuffixAndSave(window, fileBaseName, stageSuffix, dir, description) {
-    // Keep window IDs and filenames in sync with stage-based suffixes.
-    window.mainView.id += "_" + stageSuffix;
-    var nextBaseName = fileBaseName + "_" + stageSuffix;
-    var outPath = dir + "/" + nextBaseName + ".xisf";
+    // Use window's current ID as the base if it differs from fileBaseName parameter
+    // This ensures cumulative processing stages are preserved
+    var currentId = window.mainView.id;
+    
+    // Build the new identifier to match the filename exactly
+    var newIdentifier = currentId + "_" + stageSuffix;
+    var outPath = dir + "/" + newIdentifier + ".xisf";
+
+    // Set window identifier to match the filename
+    window.mainView.id = newIdentifier;
 
     if (!saveWindowAsXISF(window, outPath, description))
         return null;
 
-    return nextBaseName;
+    return newIdentifier;
 }
 
 /**
@@ -823,9 +1638,10 @@ function RunGraxpertBackgroundExtraction(window) {
 
     // if filepath is R.xisf, graxpertXisf should be R_graxpert.xisf
     var fileBaseName = File.extractName(graxpertInXisf);
+    var fileNameNoExt = fileBaseName.replace(/\.[^.]+$/, "");  // Remove extension
     var fileDir = File.extractDrive(graxpertInXisf) + File.extractDirectory(graxpertInXisf);
-    var graxpertOut = File.appendToName(fileDir + "/" +fileBaseName, "_graxpert"); // Uses as parameter for GraXpert output (no xisf)
-    var graxpertOutXisf = File.appendToName(fileDir + "/" +fileBaseName, "_graxpert") + ".xisf";
+    var graxpertOut = fileDir + "/" + fileNameNoExt + "_graxpert"; // Uses as parameter for GraXpert output (no xisf)
+    var graxpertOutXisf = fileDir + "/" + fileNameNoExt + "_graxpert.xisf";
     
     // Execute command using ExternalProcess
     // Note: GraXpert doesn't output to stdout/stderr, only to its log file
@@ -907,22 +1723,115 @@ function RunBlurXterminatorCorrectOnly(window) {
  * @function RunBlurXterminatorFull
  * @summary Runs full BlurXTerminator deconvolution/sharpening on a target window.
  * @param {ImageWindow} window Target image window.
+ * @param {String} presetName Preset configuration name.
  * @returns {Boolean} True if process executed.
  */
-function RunBlurXterminatorFull(window) {
+function RunBlurXterminatorFull(window, presetName) {
     console.noteln("Running BlurXTerminator Full on " + window.mainView.id + ".");
     
     var P = new BlurXTerminator;
     P.ml_version = 5;
-    P.correct_only = false;
-    P.correct_first = false;
     P.nonstellar_then_stellar = false;
     P.lum_only = false;
-    P.sharpen_stars = 0.25;
-    P.adjust_halos = 0.00;
     P.nonstellar_psf_diameter = 0.00;
     P.auto_nonstellar_psf = true;
-    P.sharpen_nonstellar = 0.90;
+
+    switch (presetName) {
+        case "Corner Tilt / Coma Guard":
+            P.correct_only = false;
+            P.correct_first = true;
+            P.sharpen_nonstellar = 0.85;
+            P.sharpen_stars = 0.25;
+            P.adjust_halos = 0.00;
+            break;
+
+        case "Faint Dust / Low-SNR Guard":
+            P.correct_only = false;
+            P.correct_first = false;
+            P.sharpen_nonstellar = 0.65;
+            P.sharpen_stars = 0.10;
+            P.adjust_halos = 0.00;
+            break;
+
+        case "Soft Bright Stars":
+            P.correct_only = false;
+            P.correct_first = false;
+            P.sharpen_nonstellar = 0.85;
+            P.sharpen_stars = 0.15;
+            P.adjust_halos = 0.15;
+            break;
+
+        case "Standard DSO":
+        default:
+            P.correct_only = false;
+            P.correct_first = false;
+            P.sharpen_nonstellar = 0.90;
+            P.sharpen_stars = 0.25;
+            P.adjust_halos = 0.00;
+            break;
+    }
+
+    console.show();
+    return P.executeOn(window.mainView);
+}
+
+/**
+ * @function RunGradientCorrection
+ * @summary Runs GradientCorrection background removal on a target window.
+ * @param {ImageWindow} window Target image window.
+ * @param {String} presetName Preset configuration name.
+ * @returns {Boolean} True if process executed.
+ */
+function RunGradientCorrection(window, presetName) {
+    console.noteln("Running GradientCorrection on " + window.mainView.id + ".");
+    
+    var P = new GradientCorrection;
+    P.automatic_protection = true;
+    P.automatic_convergence = true;
+    P.protection_threshold = 0.25;
+    P.protection_amount = 0.50;
+    P.convergence_threshold = 0.0010;
+    P.convergence_max_iterations = 10;
+    P.structure = true;
+
+    switch (presetName) {
+        case "Standard DSO":
+        default:
+            P.scale = 5.0;
+            P.smoothness = 0.40;
+            P.protection_threshold = 0.25;
+            P.protection_amount = 0.50;
+            break;
+        case "Extended Nebulosity / IFN":
+            P.scale = 8.0;
+            P.smoothness = 0.65;
+            P.protection_threshold = 0.25;
+            P.protection_amount = 0.50;
+            break;
+
+        case "Complex / Steep Gradients":
+            P.scale = 2.5;
+            P.smoothness = 0.25;
+            P.protection_threshold = 0.25;
+            P.protection_amount = 0.70;
+            break;
+
+        case "High-Contrast / Bright Cores":
+            P.scale = 5.0;
+            P.smoothness = 0.40;
+            P.protection_threshold = 0.12;
+            P.protection_amount = 0.80;
+            break;
+
+        case "Strong Edge / Corner Gradients":
+            P.scale = 4.0;
+            P.smoothness = 0.35;
+            P.protection_threshold = 0.25;
+            P.protection_amount = 0.50;
+            P.convergence_threshold = 0.0005;
+            P.convergence_max_iterations = 15;
+            break;
+    }
 
     console.show();
     return P.executeOn(window.mainView);
@@ -932,22 +1841,68 @@ function RunBlurXterminatorFull(window) {
  * @function RunNoiseXterminator
  * @summary Runs NoiseXTerminator noise reduction on a target window.
  * @param {ImageWindow} window Target image window.
+ * @param {String} presetName Preset configuration name.
  * @returns {Boolean} True if process executed.
  */
-function RunNoiseXterminator(window) {
+function RunNoiseXterminator(window, presetName) {
     console.noteln("Running NoiseXTerminator on " + window.mainView.id + ".");
     
     var P = new NoiseXTerminator;
     P.ai_file = "NoiseXTerminator.3.pb";
-    P.enable_color_separation = false;
-    P.enable_frequency_separation = false;
-    P.denoise = 0.70;
-    P.denoise_color = 0.90;
-    P.denoise_lf = 0.9;
-    P.denoise_lf_color = 0.9;
     P.frequency_scale = 5.0;
-    P.iterations = 2;
     P.detail = 0.15;
+
+    switch (presetName) {
+        case "Linear Pass (Default)":
+        default:
+            P.denoise = 0.70;
+            P.denoise_color = 0.90;
+            P.denoise_lf = 0.9;
+            P.denoise_lf_color = 0.9;
+            P.enable_color_separation = false;
+            P.enable_frequency_separation = false;
+            P.iterations = 2;
+            break;
+        case "Starless / Final Cleanup":
+            P.denoise = 0.90;
+            P.denoise_color = 0.90;
+            P.denoise_lf = 0.90;
+            P.denoise_lf_color = 0.90;
+            P.enable_color_separation = false;
+            P.enable_frequency_separation = false;
+            P.iterations = 2;
+            break;
+
+        case "Color Blotch Removal (OSC)":
+            P.denoise = 0.70;
+            P.denoise_color = 1.00;
+            P.denoise_lf = 0.90;
+            P.denoise_lf_color = 0.90;
+            P.enable_color_separation = true;
+            P.enable_frequency_separation = false;
+            P.iterations = 2;
+            break;
+
+        case "Faint Dust / Dark Nebula":
+            P.denoise = 0.85;
+            P.denoise_color = 0.90;
+            P.denoise_lf = 0.50;
+            P.denoise_lf_color = 0.85;
+            P.enable_color_separation = false;
+            P.enable_frequency_separation = true;
+            P.iterations = 2;
+            break;
+
+        case "Heavy Background Mottling":
+            P.denoise = 0.80;
+            P.denoise_color = 0.90;
+            P.denoise_lf = 0.90;
+            P.denoise_lf_color = 0.90;
+            P.enable_color_separation = false;
+            P.enable_frequency_separation = false;
+            P.iterations = 4;
+            break;
+    }
 
     console.show();
     return P.executeOn(window.mainView);
@@ -1053,46 +2008,47 @@ function RunSPCC(window) {
 
 /**
  * @function RunLinearFit
- * @summary Runs LinearFit on SHO or HO channel views, using the darkest channel as the reference.
- * @param {View} sView Sulfur channel view (can be null if not available).
- * @param {View} hView Hydrogen-alpha channel view.
- * @param {View} oView Oxygen channel view.
+ * @summary Runs LinearFit on three channel views, using the darkest channel as the reference.
+ * This works with any three channels (RGB, SHO, HOO, etc.).
+ * @param {View} channel1View First channel view (can be null if only 2 channels).
+ * @param {View} channel2View Second channel view.
+ * @param {View} channel3View Third channel view.
  * @returns {Boolean} True if all LinearFit executions succeeded.
  */
-function RunLinearFit(sView, hView, oView) {
-    var sMean = null;
-    var hMean = null;
-    var oMean = null;
+function RunLinearFit(channel1View, channel2View, channel3View) {
+    var mean1 = null;
+    var mean2 = null;
+    var mean3 = null;
 
-    if (sView) { 
-        sMean = sView.image.mean();
-        hMean = hView.image.mean();
-        oMean = oView.image.mean();
+    if (channel1View) { 
+        mean1 = channel1View.image.mean();
+        mean2 = channel2View.image.mean();
+        mean3 = channel3View.image.mean();
         
-        console.noteln("Running LinearFit" + " on " + sView.id + "(" + sMean + "), " + hView.id + "(" + hMean + "), " + oView.id + "(" + oMean + ").");
+        console.noteln("Running LinearFit on " + channel1View.id + "(" + mean1 + "), " + channel2View.id + "(" + mean2 + "), " + channel3View.id + "(" + mean3 + ").");
 
-        if (sMean < hMean && sMean < oMean) {
-            ApplyLinearFit(sView, hView);
-            ApplyLinearFit(sView, oView);
+        if (mean1 < mean2 && mean1 < mean3) {
+            ApplyLinearFit(channel1View, channel2View);
+            ApplyLinearFit(channel1View, channel3View);
             console.show();
 
-        } else if (hMean < sMean && hMean < oMean) {
-            ApplyLinearFit(hView, sView);
-            ApplyLinearFit(hView, oView);
+        } else if (mean2 < mean1 && mean2 < mean3) {
+            ApplyLinearFit(channel2View, channel1View);
+            ApplyLinearFit(channel2View, channel3View);
         } else {
-            ApplyLinearFit(oView, sView);
-            ApplyLinearFit(oView, hView);
+            ApplyLinearFit(channel3View, channel1View);
+            ApplyLinearFit(channel3View, channel2View);
         }
     } else {
-        hMean = hView.image.mean();
-        oMean = oView.image.mean();
+        mean2 = channel2View.image.mean();
+        mean3 = channel3View.image.mean();
 
-        console.noteln("Running LinearFit" + " on " + hView.id + "(" + hMean + "), " + oView.id + "(" + oMean + ").  No S.");
+        console.noteln("Running LinearFit on " + channel2View.id + "(" + mean2 + "), " + channel3View.id + "(" + mean3 + ").");
 
-        if (hMean < oMean) {
-            ApplyLinearFit(hView, oView);
+        if (mean2 < mean3) {
+            ApplyLinearFit(channel2View, channel3View);
         } else {
-            ApplyLinearFit(oView, hView);
+            ApplyLinearFit(channel3View, channel2View);
         }
     } 
 
@@ -1131,19 +2087,12 @@ function ApplyLinearFit(refView, targetView) {
  * @summary Runs MultiscaleAdaptiveStretch
  * @returns {Boolean} True if process executed.
  */
-function RunMultiscaleAdaptiveStretch(window) {
+function RunMultiscaleAdaptiveStretch(window, presetName) {
     console.noteln("Running MultiscaleAdaptiveStretch on " + window.mainView.id + ".");
     
     var P = new MultiscaleAdaptiveStretch;
-    P.aggressiveness = 0.50;
-    P.targetBackground = 0.150;
-    P.dynamicRangeCompression = 0.40;
-    P.contrastRecovery = true;
     P.scaleSeparation = 1024;
-    P.contrastRecoveryIntensity = 1.000;
     P.previewLargeScale = false;
-    P.saturationEnabled = true;
-    P.saturationAmount = 0.75;
     P.saturationBoost = 0.50;
     P.saturationLightnessMask = true;
     P.backgroundROIEnabled = false;
@@ -1151,9 +2100,55 @@ function RunMultiscaleAdaptiveStretch(window) {
     P.backgroundROIY0 = 0;
     P.backgroundROIWidth = 0;
     P.backgroundROIHeight = 0;
-    P.contrastRecovery = false;
-    P.dynamicRangeCompression = 1.0;
-    P.saturationAmount = 0.40;
+
+    switch (presetName) {
+        case "Extended Nebula / Dark Dust":
+            P.targetBackground = 0.22;
+            P.aggressiveness = 0.55;
+            P.dynamicRangeCompression = 0.20;
+            P.contrastRecovery = false;
+            P.saturationEnabled = true;
+            P.saturationAmount = 0.75;
+            break;
+
+        case "HDR / Bright Core (M42, M31)":
+            P.targetBackground = 0.15;
+            P.aggressiveness = 0.85;
+            P.dynamicRangeCompression = 0.75;
+            P.contrastRecovery = true;
+            P.contrastRecoveryIntensity = 0.40;
+            P.saturationEnabled = false;
+            P.saturationAmount = 0.40;
+            break;
+
+        case "Starless Nebula Layer":
+            P.targetBackground = 0.18;
+            P.aggressiveness = 0.60;
+            P.dynamicRangeCompression = 0.15;
+            P.contrastRecovery = false;
+            P.saturationEnabled = false;
+            P.saturationAmount = 0.40;
+            break;
+
+        case "Narrowband (SHO / HOO)":
+            P.targetBackground = 0.16;
+            P.aggressiveness = 0.65;
+            P.dynamicRangeCompression = 0.25;
+            P.contrastRecovery = false;
+            P.saturationEnabled = false;
+            P.saturationAmount = 0.40;
+            break;
+
+        case "Standard DSO":
+        default:
+            P.targetBackground = 0.15;
+            P.aggressiveness = 0.70;
+            P.dynamicRangeCompression = 0.40;
+            P.contrastRecovery = false;
+            P.saturationEnabled = true;
+            P.saturationAmount = 0.75;
+            break;
+    }
 
     console.noteln("Invoking MultiscaleAdaptiveStretch");
     console.show();
@@ -1275,7 +2270,7 @@ function ProcessMonoDialog(engine) {
     // Sets minimum widget size in logical pixels (DPI-aware)
     // The actual size will scale based on display DPI settings
     // ---------------------------------------------------------------
-    this.files_TreeBox.setScaledMinSize(800, 160);  // Minimum size of TreeBox (width x height) - 160 should give us 8 items
+    this.files_TreeBox.setScaledMinSize(800, 120);  // Minimum size of TreeBox (width x height) - 160 should give us 8 items
     this.files_TreeBox.numberOfColumns = 1;
     this.files_TreeBox.headerVisible = false;
 
@@ -1491,6 +2486,47 @@ function ProcessMonoDialog(engine) {
     this.files_GroupBox.sizer.add(this.filesButtons_Sizer);  // Buttons fixed height
 
     // ---------------------------------------------------------------
+    // Target Profile Selection - Unified Configuration System
+    // Allows user to select a preset profile that drives all tool parameters
+    // ---------------------------------------------------------------
+    this.targetProfile_Label = new Label(this);
+    this.targetProfile_Label.text = "Target Profile:";
+    this.targetProfile_Label.textAlignment = TextAlign_Left;
+
+    this.targetProfile_ComboBox = new ComboBox(this);
+    this.targetProfile_ComboBox.addItem("Standard DSO");
+    this.targetProfile_ComboBox.addItem("Extended Nebulosity");
+    this.targetProfile_ComboBox.addItem("Faint Dust / Dark Nebula");
+    this.targetProfile_ComboBox.addItem("Bright Cores / High Contrast");
+    this.targetProfile_ComboBox.currentItem = 0;
+    
+    this.targetProfile_ComboBox.toolTip = 
+        "<p><b>Target Profile:</b> Selects unified processing parameters optimized for specific astronomical targets.</p>" +
+        "<p><b>Standard DSO:</b> Balanced settings for typical galaxies, clusters, and medium emission nebulae.</p>" +
+        "<p><b>Extended Nebulosity:</b> Protects large, frame-filling emission clouds and outer wisps from gradient clipping.</p>" +
+        "<p><b>Faint Dust / Dark Nebula:</b> Gentle sharpening and low-frequency protection for LDN dark dust and faint IFN.</p>" +
+        "<p><b>Bright Cores / High Contrast:</b> Prevents dark rings around bright cores and compresses high-dynamic-range centers (e.g., M42, M31).</p>";
+    
+    this.targetProfile_ComboBox.onItemSelected = function (index) {
+        var items = ["Standard DSO", "Extended Nebulosity", "Faint Dust / Dark Nebula", "Bright Cores / High Contrast"];
+        this.dialog.engine.targetProfile = items[index];
+        // Note: Preset dropdowns are automatically configured by profile during processing
+        // No additional sync needed here
+    };
+
+    this.targetProfile_Sizer = new HorizontalSizer;
+    this.targetProfile_Sizer.spacing = 4;
+    this.targetProfile_Sizer.add(this.targetProfile_ComboBox, 100);
+    this.targetProfile_Sizer.addStretch();
+
+    this.targetProfile_GroupBox = new GroupBox(this);
+    this.targetProfile_GroupBox.title = "Processing Profile";
+    this.targetProfile_GroupBox.sizer = new VerticalSizer;
+    this.targetProfile_GroupBox.sizer.margin = 6;
+    this.targetProfile_GroupBox.sizer.spacing = 4;
+    this.targetProfile_GroupBox.sizer.add(this.targetProfile_Sizer);
+
+    // ---------------------------------------------------------------
     // Process Options Section
     // CheckBox widgets for controlling additional processing steps
     // ---------------------------------------------------------------
@@ -1510,12 +2546,15 @@ function ProcessMonoDialog(engine) {
     //   onCheck  - Callback when checkbox state changes
     //              Receives: checked (Boolean) parameter
     // ---------------------------------------------------------------
-    this.runGraxpertBG_CheckBox = new CheckBox(this);
-    this.runGraxpertBG_CheckBox.text = "Run Graxpert Background Extraction (Stand alone)";
-    this.runGraxpertBG_CheckBox.checked = this.engine.runGraxpertBG;
-    this.runGraxpertBG_CheckBox.toolTip = "<p>Enable Graxpert Background Extraction.</p>";
-    this.runGraxpertBG_CheckBox.onCheck = function (checked) {
-        this.dialog.engine.runGraxpertBG = checked;
+    
+
+    // Run GradientCorrection checkbox
+    this.runGradientCorrection_CheckBox = new CheckBox(this);
+    this.runGradientCorrection_CheckBox.text = "Run GradientCorrection";
+    this.runGradientCorrection_CheckBox.checked = this.engine.runGradientCorrection;
+    this.runGradientCorrection_CheckBox.toolTip = "<p>Enable GradientCorrection.</p>";
+    this.runGradientCorrection_CheckBox.onCheck = function (checked) {
+        this.dialog.engine.runGradientCorrection = checked;
     };
 
     this.runBlurXterminatorCorrectOnly_CheckBox = new CheckBox(this);
@@ -1526,13 +2565,13 @@ function ProcessMonoDialog(engine) {
         this.dialog.engine.runBlurXterminatorCorrectOnly = checked;
     };
 
-    // Layout for Channel options - vertical column of checkboxes
+    // Channel options layout - vertical column of checkboxes
     this.channelsOptions_GroupBox = new GroupBox(this);
     this.channelsOptions_GroupBox.title = "Channel Options";
     this.channelsOptions_GroupBox.sizer = new VerticalSizer;
     this.channelsOptions_GroupBox.sizer.margin = 6;
     this.channelsOptions_GroupBox.sizer.spacing = 4;
-    this.channelsOptions_GroupBox.sizer.add(this.runGraxpertBG_CheckBox);
+    this.channelsOptions_GroupBox.sizer.add(this.runGradientCorrection_CheckBox);
     this.channelsOptions_GroupBox.sizer.add(this.runBlurXterminatorCorrectOnly_CheckBox);
     this.channelsOptions_GroupBox.sizer.addStretch();  // Push checkboxes to top
 
@@ -1625,7 +2664,6 @@ function ProcessMonoDialog(engine) {
         this.dialog.engine.runBlurXterminatorFull = checked;
     };
 
-    // Run NoiseXTerminator checkbox
     this.runNoiseXterminator_CheckBox = new CheckBox(this);
     this.runNoiseXterminator_CheckBox.text = "Run NoiseXTerminator";
     this.runNoiseXterminator_CheckBox.checked = this.engine.runNoiseXterminator;
@@ -1643,14 +2681,13 @@ function ProcessMonoDialog(engine) {
         this.dialog.engine.runStarXterminator = checked;
     };
 
-    // Run MultiscaleAdaptiveStretch checkbox
     this.runMultiscaleAdaptiveStretch_CheckBox = new CheckBox(this);
     this.runMultiscaleAdaptiveStretch_CheckBox.text = "Run MultiscaleAdaptiveStretch";
     this.runMultiscaleAdaptiveStretch_CheckBox.checked = this.engine.runMultiscaleAdaptiveStretch;
     this.runMultiscaleAdaptiveStretch_CheckBox.toolTip = "<p>Enable MultiscaleAdaptiveStretch.</p>";
     this.runMultiscaleAdaptiveStretch_CheckBox.onCheck = function (checked) {
         this.dialog.engine.runMultiscaleAdaptiveStretch = checked;
-    };    
+    };
 
     // Run MultiscaleAdaptiveStretch checkbox
     this.runStarStretch_CheckBox = new CheckBox(this);
@@ -1670,7 +2707,6 @@ function ProcessMonoDialog(engine) {
         this.dialog.engine.saveTIFFs = checked;
     };
 
-    // Layout for process options - vertical column of checkboxes
     this.processOptions_GroupBox = new GroupBox(this);
     this.processOptions_GroupBox.title = "Process Options";
     this.processOptions_GroupBox.sizer = new VerticalSizer;
@@ -1727,6 +2763,8 @@ function ProcessMonoDialog(engine) {
     this.sizer.addSpacing(4);
     this.sizer.add(this.files_GroupBox);  // GroupBox expands vertically
     this.sizer.addSpacing(4);
+    this.sizer.add(this.targetProfile_GroupBox);  // Profile selection
+    this.sizer.addSpacing(4);
     this.sizer.add(this.channelsOptions_GroupBox);  // Channel options section
     this.sizer.addSpacing(4);
     this.sizer.add(this.shoAndRgbOptionRow);  // SHO and RGB options side by side
@@ -1756,6 +2794,42 @@ function ProcessMonoDialog(engine) {
 }
 
 ProcessMonoDialog.prototype = new Dialog;
+
+/**
+ * @function updatePaletteDropdown
+ * @summary Updates the palette dropdown to show only available palettes based on loaded channels.
+ * @returns {void}
+ */
+ProcessMonoDialog.prototype.updatePaletteDropdown = function () {
+    var paletteInfo = this.engine.getAvailablePalettes();
+    
+    // Clear the dropdown
+    this.shoPalette_ComboBox.clear();
+    
+    // Add only available palettes
+    for (var i = 0; i < paletteInfo.palettes.length; i++) {
+        this.shoPalette_ComboBox.addItem(paletteInfo.palettes[i]);
+    }
+    
+    // Select the first available palette
+    this.shoPalette_ComboBox.currentItem = 0;
+    if (paletteInfo.palettes.length > 0) {
+        this.engine.shoPaletteMode = paletteInfo.palettes[0];
+    }
+    
+    // Update tooltip with channel status
+    var tooltipText = "<p><b>Narrowband Palette:</b> " + paletteInfo.message + "</p>";
+    if (paletteInfo.hasSHO) {
+        tooltipText += "<p>All SHO/SHO2/Hubble/Foraxx palettes available.</p>";
+    } else if (paletteInfo.hasHOO) {
+        tooltipText += "<p><b>Note:</b> S channel missing. Limited to HOO palette.</p>";
+    } else {
+        tooltipText += "<p><b>Warning:</b> Insufficient narrowband channels for processing.</p>";
+    }
+    this.shoPalette_ComboBox.toolTip = tooltipText;
+    
+    console.noteln("Palette availability: " + paletteInfo.message);
+};
 
 // -----------------------------------------------------------------------
 // main()
@@ -1795,6 +2869,9 @@ function main() {
 
     // Create and show the dialog
     let dialog = new ProcessMonoDialog(engine);
+
+    // Update the palette dropdown based on available channels
+    dialog.updatePaletteDropdown();
 
     // ---------------------------------------------------------------
     // Dialog.execute() - PJSR Dialog API
