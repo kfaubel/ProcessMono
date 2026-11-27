@@ -1013,7 +1013,6 @@ function ProcessMono() {
             }
         }
         
-        this.statusMessages.push("");  // Blank line before output directory
         this.statusMessages.push("Output directory: " + dir);
 
         // Save all open windows before showing popup
@@ -1524,6 +1523,8 @@ function RunGraxpertBackgroundExtraction(window) {
     // So we can't rely on process output - we'll just call it and check if output file is created
     var process = new ExternalProcess;
     
+    // Use full path to graxpert executable
+    // var graxpertPath = "C:\\Users\\ken\\AppData\\Local\\Programs\\GraXpert\\GraXpert.exe";
     var graxpertPath = "GraXpert.exe";
     
     // Try to start graxpert with full path
@@ -2722,6 +2723,7 @@ function main() {
     // Save this to restore the console to its original state on cancel
     // ---------------------------------------------------------------
     console.show();
+    //console.clear();
     console.noteln("\n\n\n\n\n\n\n\n\n");
     console.noteln("**************************    Welcome to ProcessMono!   **************************");
 
