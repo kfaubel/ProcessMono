@@ -912,7 +912,6 @@ function ProcessMono() {
                 return null;
         }
 
-        //console.noteln(JSON.stringify(windowsDictionary));
         console.noteln("***** Finished processing of individual channels.");
         return dir;
     };
@@ -972,143 +971,21 @@ function ProcessMono() {
 
             console.noteln("SHO channels found: " + shoChannels.join(", "));
 
-            // // Preprocess each channel with GraXpert and BXT Correct Only
-            // for (var i = 0; i < shoChannels.length; i++) {
-            //     var chKey = shoChannels[i];
-            //     var ch = windowsDictionary[chKey];
-
-            //     console.noteln("Preprocessing " + chKey + " channel");
-
-            //     if (this.runGraxpertBG) {
-            //         if (!RunGraxpertBackgroundExtraction(ch)) {
-            //             console.warningln("GraXpert failed on " + ch.mainView.id);
-            //             return;
-            //         }
-            //         ch = ImageWindow.activeWindow;
-            //         windowsDictionary[chKey] = ch;
-            //     }
-
-            //     if (this.runBlurXterminatorCorrectOnly) {
-            //         if (!RunBlurXterminatorCorrectOnly(ch)) {
-            //             console.warningln("BlurXTerminator Correct Only failed on " + ch.mainView.id);
-            //             return;
-            //         }
-            //     }
-
-            //     saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", chKey + " preprocessing result");
-            // }
-
-            // // Linear fit
-            // if (this.runLinearFit && shoChannels.length > 1) {
-            //     console.noteln("Running Linear Fit on SHO channels");
-            //     var sWindow = windowsDictionary.S;
-            //     var hWindow = windowsDictionary.H;
-            //     var oWindow = windowsDictionary.O;
-            //     RunLinearFit(sWindow ? sWindow.mainView : null, hWindow ? hWindow.mainView : null, oWindow ? oWindow.mainView : null);
-            // }
-
-            // // Combine SHO channels
-            // var shoWindow = null;
-            // if (this.runSHOChannelCombination) {
-            //     var paletteMode = this.shoPaletteMode || "SHO";
-            //     console.noteln("Combining SHO channels with palette: " + paletteMode);
-            //     var shoChannelLetters = ["S", "H", "O"];
-            //     shoWindow = this.combineChannels(
-            //         windowsDictionary.S ? "S" : "",
-            //         "H",
-            //         "O",
-            //         paletteMode,
-            //         paletteMode,
-            //         dir
-            //     );
-            //     if (!shoWindow) {
-            //         console.warningln("SHO combination failed");
-            //         return;
-            //     }
-            // }
-
-            // Process SHO branch
-            //if (shoWindow || windowsDictionary.H) {
-                if (!this.processSHOBranch(windowsDictionary, config, dir))
-                    return;
-            //}
+            if (!this.processSHOBranch(windowsDictionary, config, dir))
+                return;
         }
 
         // ===== RGB BRANCH =====
         if (branches.hasRGB) {
             console.noteln("=== RGB Branch Detected ===");
-            //var rgbChannels = ["R", "G", "B"];
-
-            // // Preprocess each channel with GraXpert and BXT Correct Only
-            // for (var i = 0; i < rgbChannels.length; i++) {
-            //     var chKey = rgbChannels[i];
-            //     var ch = windowsDictionary[chKey];
-
-            //     console.noteln("Preprocessing " + chKey + " channel");
-
-            //     if (this.runGraxpertBG) {
-            //         if (!RunGraxpertBackgroundExtraction(ch)) {
-            //             console.warningln("GraXpert failed on " + ch.mainView.id);
-            //             return;
-            //         }
-            //         ch = ImageWindow.activeWindow;
-            //         windowsDictionary[chKey] = ch;
-            //     }
-
-            //     if (this.runBlurXterminatorCorrectOnly) {
-            //         if (!RunBlurXterminatorCorrectOnly(ch)) {
-            //             console.warningln("BlurXTerminator Correct Only failed on " + ch.mainView.id);
-            //             return;
-            //         }
-            //     }
-
-            //     saveWindowAsXISF(ch, dir + "/" + ch.mainView.id + ".xisf", chKey + " preprocessing result");
-            // }
-
-            // // Combine RGB channels
-            //var rgbWindow = null;
-            // if (this.runRGBChannelCombination) {
-            //     console.noteln("Combining RGB channels");
-            //     rgbWindow = this.combineChannels("R", "G", "B", "RGB", "RGB", dir);
-            //     if (!rgbWindow) {
-            //         console.warningln("RGB combination failed");
-            //         return;
-            //     }
-            // }
-
-            // Process RGB branch
-            //if (rgbWindow) {
-                if (!this.processRGBBranch(windowsDictionary, config, dir, branches.hasSHO))
-                    return;
-            //}
+            if (!this.processRGBBranch(windowsDictionary, config, dir, branches.hasSHO))
+                return;
         }
 
         // ===== LUMINANCE BRANCH =====
         if (branches.hasL) {
             console.noteln("=== Luminance Branch Detected ===");
-            //var lWindow = windowsDictionary.L;
-
             console.noteln("Preprocessing L channel");
-
-            // if (this.runGraxpertBG) {
-            //     if (!RunGraxpertBackgroundExtraction(lWindow)) {
-            //         console.warningln("GraXpert failed on L channel");
-            //         return;
-            //     }
-            //     lWindow = ImageWindow.activeWindow;
-            //     windowsDictionary.L = lWindow;
-            // }
-
-            // if (this.runBlurXterminatorCorrectOnly) {
-            //     if (!RunBlurXterminatorCorrectOnly(lWindow)) {
-            //         console.warningln("BlurXTerminator Correct Only failed on L channel");
-            //         return;
-            //     }
-            // }
-
-            // saveWindowAsXISF(lWindow, dir + "/" + lWindow.mainView.id + ".xisf", "L preprocessing result");
-
-            // Process L branch
             if (!this.processLuminanceBranch(windowsDictionary, config, dir))
                 return;
         }
@@ -1130,7 +1007,6 @@ function ProcessMono() {
         
         // Add applied processes to status
         if (this.appliedProcesses.length > 0) {
-            //this.statusMessages.push("");  // Blank line for readability
             this.statusMessages.push("Processes Applied:");
             for (var i = 0; i < this.appliedProcesses.length; i++) {
                 this.statusMessages.push("  • " + this.appliedProcesses[i]);
@@ -1648,8 +1524,6 @@ function RunGraxpertBackgroundExtraction(window) {
     // So we can't rely on process output - we'll just call it and check if output file is created
     var process = new ExternalProcess;
     
-    // Use full path to graxpert executable
-    // var graxpertPath = "C:\\Users\\ken\\AppData\\Local\\Programs\\GraXpert\\GraXpert.exe";
     var graxpertPath = "GraXpert.exe";
     
     // Try to start graxpert with full path
@@ -2847,16 +2721,7 @@ function main() {
     // Boolean property indicating if the Process Console is visible
     // Save this to restore the console to its original state on cancel
     // ---------------------------------------------------------------
-    let wasConsoleVisible = console.isOpen;
-
-    // ---------------------------------------------------------------
-    // console.hide() - PJSR Console API
-    // Hides the Process Console window
-    // Useful to keep UI clean while dialog is shown
-    // Related: console.show() to display the console
-    // ---------------------------------------------------------------
     console.show();
-    //console.clear();
     console.noteln("\n\n\n\n\n\n\n\n\n");
     console.noteln("**************************    Welcome to ProcessMono!   **************************");
 
